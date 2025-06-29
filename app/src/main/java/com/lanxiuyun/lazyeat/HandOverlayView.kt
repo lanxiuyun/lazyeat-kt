@@ -1,0 +1,177 @@
+package com.lanxiuyun.lazyeat
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.util.AttributeSet
+import android.util.Log
+import android.view.View
+import androidx.core.content.ContextCompat
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import kotlin.math.max
+import kotlin.math.min
+
+/**
+ * 手部关键点覆盖视图
+ * 用于在相机预览上绘制手部关键点和连接线
+ */
+class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
+
+    companion object {
+        private const val TAG = "HandOverlayView"
+        // 关键点线条宽度
+        private const val LANDMARK_STROKE_WIDTH = 8F
+    }
+
+    // 手部识别结果
+    private var results: HandLandmarkerResult? = null
+    
+    // 绘制线条的画笔
+    private var linePaint = Paint()
+    
+    // 绘制关键点的画笔
+    private var pointPaint = Paint()
+
+    // 缩放因子，用于适配不同尺寸的预览
+    private var scaleFactor: Float = 1f
+    
+    // 图像尺寸
+    private var imageWidth: Int = 1
+    private var imageHeight: Int = 1
+
+    init {
+        initPaints()
+        Log.d(TAG, "HandOverlayView 初始化完成")
+    }
+
+    /**
+     * 清除绘制内容
+     */
+    fun clear() {
+        Log.d(TAG, "清除手部覆盖视图")
+        results = null
+        linePaint.reset()
+        pointPaint.reset()
+        invalidate()
+        initPaints()
+    }
+
+    /**
+     * 初始化画笔样式
+     */
+    private fun initPaints() {
+        try {
+            // 初始化线条画笔 - 用于绘制手部关键点之间的连接线
+            linePaint.color = ContextCompat.getColor(context!!, R.color.landmark_line_color)
+            linePaint.strokeWidth = LANDMARK_STROKE_WIDTH
+            linePaint.style = Paint.Style.STROKE
+            linePaint.isAntiAlias = true
+
+            // 初始化关键点画笔 - 用于绘制手部关键点
+            pointPaint.color = ContextCompat.getColor(context, R.color.landmark_point_color)
+            pointPaint.strokeWidth = LANDMARK_STROKE_WIDTH
+            pointPaint.style = Paint.Style.FILL
+            pointPaint.isAntiAlias = true
+            
+            Log.d(TAG, "画笔初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "画笔初始化失败: ${e.message}")
+            // 使用默认颜色作为备选
+            linePaint.color = Color.CYAN
+            pointPaint.color = Color.YELLOW
+        }
+    }
+
+    /**
+     * 绘制手部关键点和连接线
+     */
+    override fun draw(canvas: Canvas) {
+        super.draw(canvas)
+        
+        // 如果没有识别结果，直接返回
+        results?.let { handLandmarkerResult ->
+            try {
+                Log.d(TAG, "开始绘制手部关键点，检测到 ${handLandmarkerResult.landmarks().size} 只手")
+                
+                // 遍历所有检测到的手
+                for (handIndex in handLandmarkerResult.landmarks().indices) {
+                    val landmark = handLandmarkerResult.landmarks()[handIndex]
+                    Log.d(TAG, "绘制第 ${handIndex + 1} 只手，关键点数量: ${landmark.size}")
+                    
+                    // 绘制每个关键点
+                    for (pointIndex in landmark.indices) {
+                        val normalizedLandmark = landmark[pointIndex]
+                        val x = normalizedLandmark.x() * imageWidth * scaleFactor
+                        val y = normalizedLandmark.y() * imageHeight * scaleFactor
+                        
+                        canvas.drawPoint(x, y, pointPaint)
+                        
+                        if (pointIndex % 5 == 0) { // 每5个点记录一次，避免日志过多
+                            Log.d(TAG, "绘制关键点 $pointIndex: ($x, $y)")
+                        }
+                    }
+
+                    // 绘制手部关键点之间的连接线
+                    HandLandmarker.HAND_CONNECTIONS.forEach { connection ->
+                        val startPoint = landmark.get(connection!!.start())
+                        val endPoint = landmark.get(connection.end())
+                        
+                        val startX = startPoint.x() * imageWidth * scaleFactor
+                        val startY = startPoint.y() * imageHeight * scaleFactor
+                        val endX = endPoint.x() * imageWidth * scaleFactor
+                        val endY = endPoint.y() * imageHeight * scaleFactor
+                        
+                        canvas.drawLine(startX, startY, endX, endY, linePaint)
+                    }
+                }
+                
+                Log.d(TAG, "手部关键点绘制完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "绘制手部关键点失败: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * 设置手部识别结果并更新绘制
+     * @param handLandmarkerResults 手部识别结果
+     * @param imageHeight 输入图像高度
+     * @param imageWidth 输入图像宽度
+     * @param runningMode 运行模式（图像/视频/实时流）
+     */
+    fun setResults(
+        handLandmarkerResults: HandLandmarkerResult,
+        imageHeight: Int,
+        imageWidth: Int,
+        runningMode: RunningMode = RunningMode.LIVE_STREAM
+    ) {
+        Log.d(TAG, "设置手部识别结果，图像尺寸: ${imageWidth}x${imageHeight}，视图尺寸: ${width}x${height}")
+        
+        results = handLandmarkerResults
+        this.imageHeight = imageHeight
+        this.imageWidth = imageWidth
+
+        // 根据运行模式计算缩放因子
+        scaleFactor = when (runningMode) {
+            RunningMode.IMAGE,
+            RunningMode.VIDEO -> {
+                // 图像和视频模式：保持宽高比，居中显示
+                min(width * 1f / imageWidth, height * 1f / imageHeight)
+            }
+            RunningMode.LIVE_STREAM -> {
+                // 实时流模式：PreviewView使用FILL_START模式
+                // 需要放大关键点以匹配捕获图像的显示尺寸
+                max(width * 1f / imageWidth, height * 1f / imageHeight)
+            }
+        }
+        
+        Log.d(TAG, "缩放因子: $scaleFactor")
+        
+        // 触发重绘
+        invalidate()
+    }
+} 

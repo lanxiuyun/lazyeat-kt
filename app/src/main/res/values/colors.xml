@@ -7,4 +7,10 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    
+    <!-- 手部关键点显示颜色 -->
+    <color name="mp_color_primary">#007F8B</color>
+    <color name="mp_color_secondary">#FBBC04</color>
+    <color name="landmark_point_color">#FFFF00</color>
+    <color name="landmark_line_color">#007F8B</color>
 </resources>

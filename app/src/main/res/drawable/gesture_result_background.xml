@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 手势识别结果文本的背景样式 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    
+    <!-- 圆角设置 -->
+    <corners android:radius="8dp" />
+    
+    <!-- 背景颜色：半透明黑色 -->
+    <solid android:color="#80000000" />
+    
+    <!-- 边框设置 -->
+    <stroke
+        android:width="1dp"
+        android:color="#40FFFFFF" />
+    
+</shape> 
