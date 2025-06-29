@@ -93,7 +93,8 @@ class MainActivity : AppCompatActivity() {
                     it.setSurfaceProvider(binding.cameraPreview.surfaceProvider)
                 }
 
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            // 使用前置相机
+            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             try {
                 cameraProvider.unbindAll()
