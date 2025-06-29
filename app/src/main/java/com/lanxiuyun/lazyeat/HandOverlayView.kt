@@ -94,12 +94,11 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         // 如果没有识别结果，直接返回
         results?.let { handLandmarkerResult ->
             try {
-                Log.d(TAG, "开始绘制手部关键点，检测到 ${handLandmarkerResult.landmarks().size} 只手")
                 
                 // 遍历所有检测到的手
                 for (handIndex in handLandmarkerResult.landmarks().indices) {
                     val landmark = handLandmarkerResult.landmarks()[handIndex]
-                    Log.d(TAG, "绘制第 ${handIndex + 1} 只手，关键点数量: ${landmark.size}")
+                    Log.i(TAG, "绘制第 ${handIndex + 1} 只手，关键点数量: ${landmark.size}")
                     
                     // 绘制每个关键点
                     for (pointIndex in landmark.indices) {
