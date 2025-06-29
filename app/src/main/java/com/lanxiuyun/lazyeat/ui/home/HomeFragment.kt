@@ -71,10 +71,10 @@ class HomeFragment : Fragment() {
         
         // 检查并请求相机权限
         if (allPermissionsGranted()) {
-            Log.d(TAG, "相机权限已获取")
+            Log.i(TAG, "相机权限已获取")
             setupServiceControls()
         } else {
-            Log.d(TAG, "请求相机权限")
+            Log.i(TAG, "请求相机权限")
             ActivityCompat.requestPermissions(
                 requireActivity(), REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS
             )
@@ -108,7 +108,7 @@ class HomeFragment : Fragment() {
      */
     private fun startGestureRecognitionService() {
         try {
-            Log.d(TAG, "启动手势识别服务")
+            Log.i(TAG, "启动手势识别服务")
             ServiceManager.startGestureRecognitionService(requireContext())
             updateGestureResult("正在启动手势识别服务...")
             updateButtonStates()
@@ -124,7 +124,7 @@ class HomeFragment : Fragment() {
      */
     private fun stopGestureRecognitionService() {
         try {
-            Log.d(TAG, "停止手势识别服务")
+            Log.i(TAG, "停止手势识别服务")
             ServiceManager.stopGestureRecognitionService(requireContext())
             updateGestureResult("手势识别服务已停止")
             updateButtonStates()
@@ -181,8 +181,6 @@ class HomeFragment : Fragment() {
             val previewWidth = 640
             val previewHeight = 480
             
-            Log.d(TAG, "更新手部覆盖视图，预览尺寸: ${previewWidth}x${previewHeight}")
-            
             // 设置手部关键点显示
             handOverlayView.setResults(
                 result,
@@ -213,7 +211,6 @@ class HomeFragment : Fragment() {
     private fun updateGestureResult(result: String) {
         try {
             gestureResultText.text = result
-            Log.d(TAG, "更新手势结果显示: $result")
         } catch (e: Exception) {
             Log.e(TAG, "更新手势结果显示失败: ${e.message}")
         }
@@ -243,6 +240,6 @@ class HomeFragment : Fragment() {
         // 停止定期更新UI
         mainHandler.removeCallbacks(updateRunnable)
         _binding = null
-        Log.d(TAG, "HomeFragment 资源已释放")
+        Log.i(TAG, "HomeFragment 资源已释放")
     }
 }

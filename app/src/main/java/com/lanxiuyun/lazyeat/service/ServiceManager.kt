@@ -19,7 +19,7 @@ object ServiceManager {
      */
     fun startGestureRecognitionService(context: Context) {
         try {
-            Log.d(TAG, "启动手势识别服务")
+            Log.i(TAG, "启动手势识别服务")
             
             val serviceIntent = Intent(context, GestureRecognitionService::class.java)
             
@@ -31,7 +31,7 @@ object ServiceManager {
                 context.startService(serviceIntent)
             }
             
-            Log.d(TAG, "手势识别服务启动成功")
+            Log.i(TAG, "手势识别服务启动成功")
         } catch (e: Exception) {
             Log.e(TAG, "启动手势识别服务失败: ${e.message}")
             e.printStackTrace()
@@ -44,12 +44,12 @@ object ServiceManager {
      */
     fun stopGestureRecognitionService(context: Context) {
         try {
-            Log.d(TAG, "停止手势识别服务")
+            Log.i(TAG, "停止手势识别服务")
             
             val serviceIntent = Intent(context, GestureRecognitionService::class.java)
             context.stopService(serviceIntent)
             
-            Log.d(TAG, "手势识别服务停止成功")
+            Log.i(TAG, "手势识别服务停止成功")
         } catch (e: Exception) {
             Log.e(TAG, "停止手势识别服务失败: ${e.message}")
             e.printStackTrace()

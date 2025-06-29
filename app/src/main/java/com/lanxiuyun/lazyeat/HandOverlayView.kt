@@ -44,7 +44,7 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
 
     init {
         initPaints()
-        Log.d(TAG, "HandOverlayView 初始化完成")
+        Log.i(TAG, "HandOverlayView 初始化完成")
     }
 
     /**

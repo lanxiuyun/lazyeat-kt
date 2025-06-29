@@ -18,7 +18,7 @@ object ServiceTestHelper {
      */
     fun testServiceStart(context: Context) {
         try {
-            Log.d(TAG, "开始测试服务启动")
+            Log.i(TAG, "开始测试服务启动")
             
             // 检查权限
             if (!hasRequiredPermissions(context)) {
@@ -33,7 +33,7 @@ object ServiceTestHelper {
             // 等待一段时间后检查服务状态
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 val isRunning = ServiceManager.isGestureRecognitionServiceRunning(context)
-                Log.d(TAG, "服务运行状态: $isRunning")
+                Log.i(TAG, "服务运行状态: $isRunning")
                 
                 if (isRunning) {
                     Toast.makeText(context, "服务启动成功", Toast.LENGTH_SHORT).show()
@@ -54,7 +54,7 @@ object ServiceTestHelper {
      */
     fun testServiceStop(context: Context) {
         try {
-            Log.d(TAG, "开始测试服务停止")
+            Log.i(TAG, "开始测试服务停止")
             
             // 停止服务
             ServiceManager.stopGestureRecognitionService(context)
@@ -62,7 +62,7 @@ object ServiceTestHelper {
             // 等待一段时间后检查服务状态
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 val isRunning = ServiceManager.isGestureRecognitionServiceRunning(context)
-                Log.d(TAG, "服务运行状态: $isRunning")
+                Log.i(TAG, "服务运行状态: $isRunning")
                 
                 if (!isRunning) {
                     Toast.makeText(context, "服务停止成功", Toast.LENGTH_SHORT).show()
@@ -85,7 +85,7 @@ object ServiceTestHelper {
         val isRunning = ServiceManager.isGestureRecognitionServiceRunning(context)
         val status = if (isRunning) "运行中" else "已停止"
         
-        Log.d(TAG, "服务状态: $status")
+        Log.i(TAG, "服务状态: $status")
         Toast.makeText(context, "服务状态: $status", Toast.LENGTH_SHORT).show()
     }
     
@@ -110,13 +110,10 @@ object ServiceTestHelper {
      * @param context 上下文
      */
     fun printDebugInfo(context: Context) {
-        Log.d(TAG, "=== 调试信息 ===")
-        Log.d(TAG, "应用包名: ${context.packageName}")
-        Log.d(TAG, "Android版本: ${android.os.Build.VERSION.SDK_INT}")
-        Log.d(TAG, "设备型号: ${android.os.Build.MODEL}")
-        Log.d(TAG, "服务运行状态: ${ServiceManager.isGestureRecognitionServiceRunning(context)}")
-        Log.d(TAG, "当前手势结果: ${GestureRecognitionService.currentGestureResult}")
-        Log.d(TAG, "手部识别结果: ${GestureRecognitionService.lastHandLandmarkerResult != null}")
-        Log.d(TAG, "=================")
+        Log.i(TAG, "=== 调试信息 ===")
+        Log.i(TAG, "服务运行状态: ${ServiceManager.isGestureRecognitionServiceRunning(context)}")
+        Log.i(TAG, "当前手势结果: ${GestureRecognitionService.currentGestureResult}")
+        Log.i(TAG, "手部识别结果: ${GestureRecognitionService.lastHandLandmarkerResult != null}")
+        Log.i(TAG, "=================")
     }
 } 

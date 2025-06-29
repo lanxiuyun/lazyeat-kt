@@ -53,7 +53,7 @@ class GestureRecognitionService : LifecycleService() {
     
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "手势识别服务创建")
+        Log.i(TAG, "手势识别服务创建")
         
         // 初始化摄像头执行器
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -70,7 +70,7 @@ class GestureRecognitionService : LifecycleService() {
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        Log.d(TAG, "手势识别服务启动")
+        Log.i(TAG, "手势识别服务启动")
         
         // 启动前台服务
         startForeground(NOTIFICATION_ID, createNotification("手势识别服务运行中"))
@@ -83,7 +83,7 @@ class GestureRecognitionService : LifecycleService() {
     
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "手势识别服务销毁")
+        Log.i(TAG, "手势识别服务销毁")
         
         // 释放资源
         cameraExecutor.shutdown()
@@ -159,7 +159,7 @@ class GestureRecognitionService : LifecycleService() {
                 // 开始定期捕获图像进行手势识别
                 startPeriodicImageCapture()
                 
-                Log.d(TAG, "摄像头启动成功")
+                Log.i(TAG, "摄像头启动成功")
                 
             } catch (e: Exception) {
                 Log.e(TAG, "摄像头启动失败: ${e.message}")

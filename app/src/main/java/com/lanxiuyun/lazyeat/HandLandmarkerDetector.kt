@@ -35,20 +35,20 @@ class HandLandmarkerDetector(
      */
     fun initialize() {
         try {
-            Log.d(TAG, "开始初始化 HandLandmarker")
+            Log.i(TAG, "开始初始化 HandLandmarker")
             
             // 复制模型到 cache 目录（MediaPipe 只能用文件路径）
             val modelAssetName = "hand_landmarker.task"
             val modelFile = File(context.cacheDir, modelAssetName)
             
             if (!modelFile.exists()) {
-                Log.d(TAG, "模型文件不存在，从 assets 复制到 cache 目录")
+                Log.i(TAG, "模型文件不存在，从 assets 复制到 cache 目录")
                 context.assets.open(modelAssetName).use { input ->
                     modelFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
-                Log.d(TAG, "模型文件复制完成: ${modelFile.absolutePath}")
+                Log.i(TAG, "模型文件复制完成: ${modelFile.absolutePath}")
             } else {
                 Log.d(TAG, "模型文件已存在: ${modelFile.absolutePath}")
             }
@@ -81,7 +81,7 @@ class HandLandmarkerDetector(
             
             handLandmarker = HandLandmarker.createFromOptions(context, options)
             isInitialized = true
-            Log.d(TAG, "HandLandmarker 初始化成功")
+            Log.i(TAG, "HandLandmarker 初始化成功")
         } catch (e: Exception) {
             Log.e(TAG, "HandLandmarker 初始化失败: ${e.message}")
             e.printStackTrace()
@@ -118,7 +118,7 @@ class HandLandmarkerDetector(
         try {
             handLandmarker?.close()
             isInitialized = false
-            Log.d(TAG, "HandLandmarker 资源已释放")
+            Log.i(TAG, "HandLandmarker 资源已释放")
         } catch (e: Exception) {
             Log.e(TAG, "释放资源失败: ${e.message}")
             e.printStackTrace()
