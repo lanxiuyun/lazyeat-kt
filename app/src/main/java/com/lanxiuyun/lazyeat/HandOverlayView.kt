@@ -108,10 +108,6 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
                         val y = normalizedLandmark.y() * imageHeight * scaleFactor
                         
                         canvas.drawPoint(x, y, pointPaint)
-                        
-                        if (pointIndex % 5 == 0) { // 每5个点记录一次，避免日志过多
-                            Log.d(TAG, "绘制关键点 $pointIndex: ($x, $y)")
-                        }
                     }
 
                     // 绘制手部关键点之间的连接线
@@ -127,8 +123,6 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
                         canvas.drawLine(startX, startY, endX, endY, linePaint)
                     }
                 }
-                
-                Log.d(TAG, "手部关键点绘制完成")
             } catch (e: Exception) {
                 Log.e(TAG, "绘制手部关键点失败: ${e.message}")
                 e.printStackTrace()
