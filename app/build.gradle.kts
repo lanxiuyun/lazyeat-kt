@@ -49,6 +49,9 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
 
+    // Lifecycle Service 依赖
+    implementation("androidx.lifecycle:lifecycle-service:2.7.0")
+
     // CameraX
     val camerax_version = "1.3.1"
     implementation("androidx.camera:camera-core:${camerax_version}")
