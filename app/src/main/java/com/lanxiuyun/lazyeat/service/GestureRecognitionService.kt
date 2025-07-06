@@ -190,7 +190,7 @@ class GestureRecognitionService : LifecycleService() {
                     .setTargetRotation(getDisplayRotation())  // 设置正确方向，防止图像旋转错误
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)  // 4:3 比例，与模型训练一致
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)  // 只处理最新一帧，降低延迟
-                    // 默认输出 YUV_420_888（不指定格式），便于统一处理
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)  // 直接输出RGBA格式
                     .build().apply {
                         // 每当摄像头产生新帧时都会调用此分析器
                         setAnalyzer(cameraExecutor) { imageProxy ->
@@ -241,120 +241,47 @@ class GestureRecognitionService : LifecycleService() {
     }
     
     /**
-     * 将ImageProxy转换为Bitmap
-     * @param imageProxy 相机捕获的图像代理对象
-     * @return 转换后的Bitmap，失败返回null
-     */
-    private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap? {
-        return try {
-            if (imageProxy.format == ImageFormat.YUV_420_888 && imageProxy.planes.size == 3) {
-                // ---- YUV_420_888 → NV21 → Bitmap ----
-                val nv21 = yuv420ThreePlanesToNV21(
-                    imageProxy.planes,
-                    imageProxy.width,
-                    imageProxy.height
-                )
-                val yuvImage = YuvImage(nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
-                val out = ByteArrayOutputStream()
-                yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 100, out)
-                val imageBytes = out.toByteArray()
-                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-            } else {
-                // ---- 其他格式（如 RGBA_8888）→ 直接拷贝 ----
-                val plane = imageProxy.planes[0]
-                val buffer = plane.buffer
-                val pixelStride = plane.pixelStride
-                val rowStride = plane.rowStride
-                val rowPadding = rowStride - pixelStride * imageProxy.width
-                val bitmap = Bitmap.createBitmap(
-                    imageProxy.width + rowPadding / pixelStride,
-                    imageProxy.height,
-                    Bitmap.Config.ARGB_8888
-                )
-                bitmap.copyPixelsFromBuffer(buffer)
-                Bitmap.createBitmap(bitmap, 0, 0, imageProxy.width, imageProxy.height)
-            }
-        } catch (e: Exception) {
-            LogUtils.e(TAG, "ImageProxy 转 Bitmap 失败: ${e.message}")
-            null
-        }
-    }
-    
-    /**
-     * 将 CameraX 提供的三平面 YUV 数据转成 NV21 格式
-     * 说明：NV21 是 Android 里使用最广泛的 YUV 格式，便于后续使用 YuvImage 进行压缩
-     */
-    private fun yuv420ThreePlanesToNV21(
-        planes: Array<ImageProxy.PlaneProxy>,
-        width: Int,
-        height: Int
-    ): ByteArray {
-        val ySize = width * height
-        val uvSize = width * height / 4
-
-        val nv21 = ByteArray(ySize + uvSize * 2)  // NV21 = Y + VU
-
-        // ----- 1. Y 平面 -----
-        val yBuffer = planes[0].buffer
-        val yRowStride = planes[0].rowStride
-        val yPixelStride = planes[0].pixelStride  // 对于 Y 通道通常为1
-        var pos = 0
-        for (row in 0 until height) {
-            if (yPixelStride == 1 && yRowStride == width) {
-                // 连续内存，直接拷贝整行
-                yBuffer.position(row * yRowStride)
-                yBuffer.get(nv21, pos, width)
-                pos += width
-            } else {
-                // 逐像素读取
-                for (col in 0 until width) {
-                    nv21[pos++] = yBuffer.get(row * yRowStride + col * yPixelStride)
-                }
-            }
-        }
-
-        // ----- 2. UV 平面（VU 排列）-----
-        val uBuffer = planes[1].buffer
-        val vBuffer = planes[2].buffer
-        val uvRowStride = planes[1].rowStride
-        val uvPixelStride = planes[1].pixelStride
-        for (row in 0 until height / 2) {
-            for (col in 0 until width / 2) {
-                val vuPos = row * uvRowStride + col * uvPixelStride
-                nv21[pos++] = vBuffer.get(vuPos)  // V 分量
-                nv21[pos++] = uBuffer.get(vuPos)  // U 分量
-            }
-        }
-
-        return nv21
-    }
-    
-    /**
      * 处理 ImageProxy（连续帧）并执行手势识别
      * 注意：必须在最后调用 image.close() 否则下一帧无法到达
      */
     private fun processImageProxy(image: ImageProxy) {
         try {
-            // 1. ImageProxy -> Bitmap
-            val bitmap = imageProxyToBitmap(image)?.let { original ->
-                // 读取当帧需要顺时针旋转的角度
-                val rotationDegrees = image.imageInfo.rotationDegrees
-                // 1) 先旋转至正确方向，2) 再做前置镜像
-                val matrix = Matrix().apply {
-                    // 将图像旋转到自然朝向
-                    postRotate(rotationDegrees.toFloat())
-                    // 前置摄像头保持与真人一致的左右方向
-                    postScale(-1f, 1f, original.width / 2f, original.height / 2f)
-                }
-                Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
+            // 1. 从 RGBA 格式的 ImageProxy 直接获取 Bitmap
+            val bitmap = Bitmap.createBitmap(
+                image.width,
+                image.height,
+                Bitmap.Config.ARGB_8888
+            ).apply {
+                // 直接从 buffer 拷贝像素数据
+                copyPixelsFromBuffer(image.planes[0].buffer)
             }
 
-            if (bitmap != null) {
-                // 更新最近预览
-                updatePreviewImage(bitmap)
-                // 执行手势识别（异步）
-                handLandmarkerDetector.detect(bitmap, System.currentTimeMillis())
+            // 2. 处理图像旋转和镜像
+            val rotationDegrees = image.imageInfo.rotationDegrees
+            val matrix = Matrix().apply {
+                // 将图像旋转到自然朝向
+                postRotate(rotationDegrees.toFloat())
+                // 前置摄像头保持与真人一致的左右方向
+                postScale(-1f, 1f, bitmap.width / 2f, bitmap.height / 2f)
             }
+            
+            val processedBitmap = Bitmap.createBitmap(
+                bitmap,
+                0,
+                0,
+                bitmap.width,
+                bitmap.height,
+                matrix,
+                true
+            )
+
+            // 3. 更新预览和执行识别
+            updatePreviewImage(processedBitmap)
+            handLandmarkerDetector.detect(processedBitmap, System.currentTimeMillis())
+
+            // 4. 释放原始 bitmap
+            bitmap.recycle()
+            
         } catch (e: Exception) {
             LogUtils.e(TAG, "图像处理失败: ${e.message}")
         } finally {
