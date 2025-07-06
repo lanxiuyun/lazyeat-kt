@@ -329,8 +329,13 @@ class GestureRecognitionService : LifecycleService() {
         try {
             // 1. ImageProxy -> Bitmap
             val bitmap = imageProxyToBitmap(image)?.let { original ->
-                // 2. 前置摄像头需水平镜像，保持与真人一致
+                // 读取当帧需要顺时针旋转的角度
+                val rotationDegrees = image.imageInfo.rotationDegrees
+                // 1) 先旋转至正确方向，2) 再做前置镜像
                 val matrix = Matrix().apply {
+                    // 将图像旋转到自然朝向
+                    postRotate(rotationDegrees.toFloat())
+                    // 前置摄像头保持与真人一致的左右方向
                     postScale(-1f, 1f, original.width / 2f, original.height / 2f)
                 }
                 Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
