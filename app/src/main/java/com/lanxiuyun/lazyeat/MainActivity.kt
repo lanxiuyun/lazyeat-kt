@@ -12,6 +12,7 @@ import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.lanxiuyun.lazyeat.service.ServiceManager
 
 /**
  * 主Activity，负责导航控制和权限请求
@@ -40,6 +41,9 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(
                 this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS
             )
+        } else {
+            // 权限已获取，自动启动手势识别服务
+            ServiceManager.startGestureRecognitionService(this)
         }
 
         // 设置底部导航
@@ -73,7 +77,8 @@ class MainActivity : AppCompatActivity() {
         
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
-                // 权限已获取，可以正常使用
+                // 权限已获取，自动启动手势识别服务
+                ServiceManager.startGestureRecognitionService(this)
             } else {
                 // 权限被拒绝，显示提示
                 // 这里可以显示一个对话框解释为什么需要这些权限
