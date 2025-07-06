@@ -4,12 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.MPImage
+import com.lanxiuyun.lazyeat.utils.LogUtils
 import java.io.File
 
 /**
@@ -27,6 +28,7 @@ class HandLandmarkerDetector(
 
     companion object {
         private const val TAG = "HandLandmarkerDetector"
+        private const val MODEL_NAME = "hand_landmarker.task"
     }
 
     /**
@@ -35,55 +37,54 @@ class HandLandmarkerDetector(
      */
     fun initialize() {
         try {
-            Log.i(TAG, "开始初始化 HandLandmarker")
+            LogUtils.i(TAG, "开始初始化 HandLandmarker")
             
             // 复制模型到 cache 目录（MediaPipe 只能用文件路径）
-            val modelAssetName = "hand_landmarker.task"
-            val modelFile = File(context.cacheDir, modelAssetName)
+            val modelFile = File(context.cacheDir, MODEL_NAME)
             
             if (!modelFile.exists()) {
-                Log.i(TAG, "模型文件不存在，从 assets 复制到 cache 目录")
-                context.assets.open(modelAssetName).use { input ->
+                LogUtils.i(TAG, "模型文件不存在，从 assets 复制到 cache 目录")
+                context.assets.open(MODEL_NAME).use { input ->
                     modelFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
-                Log.i(TAG, "模型文件复制完成: ${modelFile.absolutePath}")
+                LogUtils.i(TAG, "模型文件复制完成: ${modelFile.absolutePath}")
             } else {
-                Log.d(TAG, "模型文件已存在: ${modelFile.absolutePath}")
+                LogUtils.d(TAG, "模型文件已存在: ${modelFile.absolutePath}")
             }
             
             // 构建 BaseOptions（官方推荐方式）
             val baseOptions = BaseOptions.builder()
                 .setModelAssetPath(modelFile.absolutePath)
                 .build()
-            Log.d(TAG, "BaseOptions 构建完成")
+            LogUtils.d(TAG, "BaseOptions 构建完成")
             
             // 构建 HandLandmarkerOptions（官方推荐方式）
             val options = HandLandmarker.HandLandmarkerOptions.builder()
                 .setBaseOptions(baseOptions)
                 .setRunningMode(RunningMode.LIVE_STREAM)
-                .setResultListener { result, image ->
+                .setResultListener { result: HandLandmarkerResult?, image: MPImage ->
                     // 回调在子线程，切回主线程
-                    Log.d(TAG, "收到手势识别结果回调")
+                    LogUtils.d(TAG, "收到手势识别结果回调")
                     mainHandler.post {
                         onResult(result)
                     }
                 }
                 .setErrorListener { error ->
-                    Log.e(TAG, "手部关键点检测错误: ${error.message}")
+                    LogUtils.e(TAG, "手部关键点检测错误: ${error.message}")
                     mainHandler.post {
                         onResult(null)
                     }
                 }
                 .build()
-            Log.d(TAG, "HandLandmarkerOptions 构建完成")
+            LogUtils.d(TAG, "HandLandmarkerOptions 构建完成")
             
             handLandmarker = HandLandmarker.createFromOptions(context, options)
             isInitialized = true
-            Log.i(TAG, "HandLandmarker 初始化成功")
+            LogUtils.i(TAG, "HandLandmarker 初始化成功")
         } catch (e: Exception) {
-            Log.e(TAG, "HandLandmarker 初始化失败: ${e.message}")
+            LogUtils.e(TAG, "HandLandmarker 初始化失败: ${e.message}")
             e.printStackTrace()
             isInitialized = false
         }
@@ -96,20 +97,20 @@ class HandLandmarkerDetector(
      */
     fun detect(bitmap: Bitmap, timestamp: Long) {
         if (!isInitialized) {
-            Log.w(TAG, "HandLandmarker 未初始化，跳过检测")
+            LogUtils.w(TAG, "HandLandmarker 未初始化，跳过检测")
             return
         }
         
         try {
-            Log.d(TAG, "开始检测手部关键点，图像尺寸: ${bitmap.width}x${bitmap.height}")
+            LogUtils.d(TAG, "开始检测手部关键点，图像尺寸: ${bitmap.width}x${bitmap.height}")
             
             // 官方推荐的 MPImage 创建方式
             val mpImage = BitmapImageBuilder(bitmap).build()
             handLandmarker?.detectAsync(mpImage, timestamp)
             
-            Log.d(TAG, "异步检测请求已发送")
+            LogUtils.d(TAG, "异步检测请求已发送")
         } catch (e: Exception) {
-            Log.e(TAG, "检测失败: ${e.message}")
+            LogUtils.e(TAG, "检测失败: ${e.message}")
             e.printStackTrace()
         }
     }
@@ -118,9 +119,9 @@ class HandLandmarkerDetector(
         try {
             handLandmarker?.close()
             isInitialized = false
-            Log.i(TAG, "HandLandmarker 资源已释放")
+            LogUtils.i(TAG, "HandLandmarker 资源已释放")
         } catch (e: Exception) {
-            Log.e(TAG, "释放资源失败: ${e.message}")
+            LogUtils.e(TAG, "释放资源失败: ${e.message}")
             e.printStackTrace()
         }
     }
