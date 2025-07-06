@@ -21,6 +21,11 @@ import com.lanxiuyun.lazyeat.MainActivity
 import com.lanxiuyun.lazyeat.R
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import android.graphics.ImageFormat
+import android.graphics.YuvImage
+import android.graphics.Rect
+import java.io.ByteArrayOutputStream
+import android.graphics.BitmapFactory
 
 /**
  * 手势识别前台服务
@@ -43,6 +48,7 @@ class GestureRecognitionService : LifecycleService() {
     private var cameraProvider: ProcessCameraProvider? = null  // 相机提供者，用于管理相机生命周期
     private var camera: Camera? = null                        // 相机实例
     private var imageCapture: ImageCapture? = null           // 图像捕获用例
+    private var imageAnalysis: ImageAnalysis? = null         // 新增：图像分析用例（连续帧）
     private lateinit var cameraExecutor: ExecutorService     // 相机操作的执行器
     private lateinit var handLandmarkerDetector: HandLandmarkerDetector  // 手势识别器
     
@@ -171,29 +177,32 @@ class GestureRecognitionService : LifecycleService() {
             try {
                 cameraProvider = cameraProviderFuture.get()
                 
-                // 配置图像捕获参数
-                val imageCapture = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)  // 优化延迟而非质量
-                    .setTargetRotation(getDisplayRotation())  // 设置正确的图像方向
-                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)  // 使用4:3比例，适合手势识别
-                    .build()
+                // 创建连续图像流 (ImageAnalysis) 用例，替代 ImageCapture
+                val imageAnalysis = ImageAnalysis.Builder()
+                    .setTargetRotation(getDisplayRotation())  // 设置正确方向，防止图像旋转错误
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)  // 4:3 比例，与模型训练一致
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)  // 只处理最新一帧，降低延迟
+                    // 默认输出 YUV_420_888（不指定格式），便于统一处理
+                    .build().apply {
+                        // 每当摄像头产生新帧时都会调用此分析器
+                        setAnalyzer(cameraExecutor) { imageProxy ->
+                            processImageProxy(imageProxy)  // 处理并执行手势识别
+                        }
+                    }
                 
                 // 配置前置相机
                 val cameraSelector = CameraSelector.Builder()
-                    .requireLensFacing(CameraSelector.LENS_FACING_FRONT)  // 使用前置相机
+                    .requireLensFacing(CameraSelector.LENS_FACING_FRONT)  // 前置摄像头
                     .build()
                 
-                // 将相机用例绑定到生命周期
+                // 将相机用例绑定到生命周期（只绑定 preview & analysis 即可）
                 camera = cameraProvider?.bindToLifecycle(
                     this,
                     cameraSelector,
-                    imageCapture
+                    imageAnalysis
                 )
                 
-                this.imageCapture = imageCapture
-                
-                // 开始定期捕获图像
-                startPeriodicImageCapture()
+                this.imageAnalysis = imageAnalysis
                 
                 Log.i(TAG, "摄像头启动成功")
                 
@@ -224,80 +233,121 @@ class GestureRecognitionService : LifecycleService() {
     }
     
     /**
-     * 开始定期图像捕获
-     * 每500毫秒捕获一次图像进行识别
-     */
-    private fun startPeriodicImageCapture() {
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        
-        val captureRunnable = object : Runnable {
-            override fun run() {
-                captureImageForGestureRecognition()
-                handler.postDelayed(this, 500)  // 每500ms执行一次
-            }
-        }
-        
-        handler.post(captureRunnable)
-    }
-    
-    /**
-     * 捕获图像并进行手势识别
-     * 包含图像捕获、转换和识别过程
-     */
-    private fun captureImageForGestureRecognition() {
-        val imageCapture = imageCapture ?: return
-        
-        imageCapture.takePicture(
-            cameraExecutor,
-            object : ImageCapture.OnImageCapturedCallback() {
-                override fun onCaptureSuccess(image: ImageProxy) {
-                    try {
-                        // 将图像转换为Bitmap并进行镜像处理
-                        val bitmap = imageProxyToBitmap(image)?.let { originalBitmap ->
-                            // 创建镜像变换矩阵
-                            val matrix = Matrix().apply {
-                                postScale(-1f, 1f, originalBitmap.width / 2f, originalBitmap.height / 2f)
-                            }
-                            
-                            // 应用镜像变换
-                            Bitmap.createBitmap(
-                                originalBitmap,
-                                0, 0,
-                                originalBitmap.width, originalBitmap.height,
-                                matrix,
-                                true
-                            )
-                        }
-                        
-                        if (bitmap != null) {
-                            lastPreviewImage = bitmap  // 更新预览图像
-                            handLandmarkerDetector.detect(bitmap, System.currentTimeMillis())  // 执行识别
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "图像处理失败: ${e.message}")
-                    } finally {
-                        image.close()  // 确保释放图像资源
-                    }
-                }
-                
-                override fun onError(exception: ImageCaptureException) {
-                    Log.e(TAG, "图像捕获失败: ${exception.message}")
-                }
-            }
-        )
-    }
-    
-    /**
      * 将ImageProxy转换为Bitmap
      * @param imageProxy 相机捕获的图像代理对象
      * @return 转换后的Bitmap，失败返回null
      */
     private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap? {
-        val buffer = imageProxy.planes[0].buffer
-        val bytes = ByteArray(buffer.remaining())
-        buffer.get(bytes)
-        
-        return android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        return try {
+            if (imageProxy.format == ImageFormat.YUV_420_888 && imageProxy.planes.size == 3) {
+                // ---- YUV_420_888 → NV21 → Bitmap ----
+                val nv21 = yuv420ThreePlanesToNV21(
+                    imageProxy.planes,
+                    imageProxy.width,
+                    imageProxy.height
+                )
+                val yuvImage = YuvImage(nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
+                val out = ByteArrayOutputStream()
+                yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 100, out)
+                val imageBytes = out.toByteArray()
+                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            } else {
+                // ---- 其他格式（如 RGBA_8888）→ 直接拷贝 ----
+                val plane = imageProxy.planes[0]
+                val buffer = plane.buffer
+                val pixelStride = plane.pixelStride
+                val rowStride = plane.rowStride
+                val rowPadding = rowStride - pixelStride * imageProxy.width
+                val bitmap = Bitmap.createBitmap(
+                    imageProxy.width + rowPadding / pixelStride,
+                    imageProxy.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                bitmap.copyPixelsFromBuffer(buffer)
+                Bitmap.createBitmap(bitmap, 0, 0, imageProxy.width, imageProxy.height)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "ImageProxy 转 Bitmap 失败: ${e.message}")
+            null
+        }
+    }
+    
+    /**
+     * 将 CameraX 提供的三平面 YUV 数据转成 NV21 格式
+     * 说明：NV21 是 Android 里使用最广泛的 YUV 格式，便于后续使用 YuvImage 进行压缩
+     */
+    private fun yuv420ThreePlanesToNV21(
+        planes: Array<ImageProxy.PlaneProxy>,
+        width: Int,
+        height: Int
+    ): ByteArray {
+        val ySize = width * height
+        val uvSize = width * height / 4
+
+        val nv21 = ByteArray(ySize + uvSize * 2)  // NV21 = Y + VU
+
+        // ----- 1. Y 平面 -----
+        val yBuffer = planes[0].buffer
+        val yRowStride = planes[0].rowStride
+        val yPixelStride = planes[0].pixelStride  // 对于 Y 通道通常为1
+        var pos = 0
+        for (row in 0 until height) {
+            if (yPixelStride == 1 && yRowStride == width) {
+                // 连续内存，直接拷贝整行
+                yBuffer.position(row * yRowStride)
+                yBuffer.get(nv21, pos, width)
+                pos += width
+            } else {
+                // 逐像素读取
+                for (col in 0 until width) {
+                    nv21[pos++] = yBuffer.get(row * yRowStride + col * yPixelStride)
+                }
+            }
+        }
+
+        // ----- 2. UV 平面（VU 排列）-----
+        val uBuffer = planes[1].buffer
+        val vBuffer = planes[2].buffer
+        val uvRowStride = planes[1].rowStride
+        val uvPixelStride = planes[1].pixelStride
+        for (row in 0 until height / 2) {
+            for (col in 0 until width / 2) {
+                val vuPos = row * uvRowStride + col * uvPixelStride
+                nv21[pos++] = vBuffer.get(vuPos)  // V 分量
+                nv21[pos++] = uBuffer.get(vuPos)  // U 分量
+            }
+        }
+
+        return nv21
+    }
+    
+    /**
+     * 处理 ImageProxy（连续帧）并执行手势识别
+     * 注意：必须在最后调用 image.close() 否则下一帧无法到达
+     */
+    private fun processImageProxy(image: ImageProxy) {
+        try {
+            // 1. ImageProxy -> Bitmap
+            val bitmap = imageProxyToBitmap(image)?.let { original ->
+                // 2. 前置摄像头需水平镜像，保持与真人一致
+                val matrix = Matrix().apply {
+                    postScale(-1f, 1f, original.width / 2f, original.height / 2f)
+                }
+                Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
+            }
+
+            if (bitmap != null) {
+                // 更新最近预览
+                lastPreviewImage = bitmap
+                // 执行手势识别（异步）
+                handLandmarkerDetector.detect(bitmap, System.currentTimeMillis())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "图像处理失败: ${e.message}")
+        } finally {
+            // VERY VERY IMPORTANT：释放当前帧资源
+            image.close()
+        }
     }
     
     /**
