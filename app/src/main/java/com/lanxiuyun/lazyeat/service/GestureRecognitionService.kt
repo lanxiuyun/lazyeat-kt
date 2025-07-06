@@ -151,7 +151,7 @@ class GestureRecognitionService : LifecycleService() {
                     // 设置目标旋转，这样输出的图像就是正确方向
                     .setTargetRotation(getDisplayRotation())
                     // 设置镜像模式，前置摄像头需要水平镜像
-                    .setTargetResolution(android.util.Size(640, 480))
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)  // 4:3 比例约等于 640x480
                     .build()
                 
                 // 选择前置摄像头
