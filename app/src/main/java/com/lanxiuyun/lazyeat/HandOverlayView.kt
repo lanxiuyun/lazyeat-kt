@@ -1,9 +1,7 @@
 package com.lanxiuyun.lazyeat
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
+import android.graphics.*
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
@@ -29,6 +27,10 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
     // 手部识别结果
     private var results: HandLandmarkerResult? = null
     
+    // 预览图像
+    private var previewBitmap: Bitmap? = null
+    private val previewPaint = Paint()
+    
     // 绘制线条的画笔
     private var linePaint = Paint()
     
@@ -53,6 +55,7 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
     fun clear() {
         Log.d(TAG, "清除手部覆盖视图")
         results = null
+        previewBitmap = null
         linePaint.reset()
         pointPaint.reset()
         invalidate()
@@ -64,6 +67,9 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
      */
     private fun initPaints() {
         try {
+            // 初始化预览图像画笔
+            previewPaint.isFilterBitmap = true
+            
             // 初始化线条画笔 - 用于绘制手部关键点之间的连接线
             linePaint.color = ContextCompat.getColor(context!!, R.color.landmark_line_color)
             linePaint.strokeWidth = LANDMARK_STROKE_WIDTH
@@ -86,15 +92,24 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
     }
 
     /**
-     * 绘制手部关键点和连接线
+     * 绘制预览图像、手部关键点和连接线
      */
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
         
-        // 如果没有识别结果，直接返回
+        // 首先绘制预览图像
+        previewBitmap?.let { bitmap ->
+            // 计算图像绘制区域，保持宽高比
+            val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+            val dstRect = RectF(0f, 0f, width.toFloat(), height.toFloat())
+            
+            // 绘制预览图像
+            canvas.drawBitmap(bitmap, srcRect, dstRect, previewPaint)
+        }
+        
+        // 绘制手部关键点和连接线
         results?.let { handLandmarkerResult ->
             try {
-                
                 // 遍历所有检测到的手
                 for (handIndex in handLandmarkerResult.landmarks().indices) {
                     val landmark = handLandmarkerResult.landmarks()[handIndex]
@@ -127,6 +142,15 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
                 e.printStackTrace()
             }
         }
+    }
+
+    /**
+     * 设置预览图像
+     * @param bitmap 预览图像
+     */
+    fun setPreviewImage(bitmap: Bitmap) {
+        previewBitmap = bitmap
+        invalidate()
     }
 
     /**

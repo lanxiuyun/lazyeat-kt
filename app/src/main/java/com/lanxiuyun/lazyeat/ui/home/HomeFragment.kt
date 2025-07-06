@@ -155,10 +155,21 @@ class HomeFragment : Fragment() {
                 gestureResultText.text = currentResult
             }
             
-            // 更新手部关键点显示
+            // 更新预览图像和手部关键点显示
+            val lastImage = GestureRecognitionService.lastPreviewImage
             val lastResult = GestureRecognitionService.lastHandLandmarkerResult
-            if (lastResult != null) {
-                updateHandOverlay(lastResult)
+            
+            if (lastImage != null) {
+                handOverlayView.setPreviewImage(lastImage)
+                
+                if (lastResult != null) {
+                    handOverlayView.setResults(
+                        lastResult,
+                        lastImage.height,
+                        lastImage.width,
+                        com.google.mediapipe.tasks.vision.core.RunningMode.LIVE_STREAM
+                    )
+                }
             } else {
                 clearHandOverlay()
             }

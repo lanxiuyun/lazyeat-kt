@@ -1,11 +1,15 @@
 package com.lanxiuyun.lazyeat.service
 
 import android.app.*
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import android.view.Surface
+import android.view.WindowManager
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.NotificationCompat
@@ -49,6 +53,8 @@ class GestureRecognitionService : LifecycleService() {
         var currentGestureResult: String = "等待手势识别..."
         @Volatile
         var lastHandLandmarkerResult: HandLandmarkerResult? = null
+        @Volatile
+        var lastPreviewImage: Bitmap? = null
     }
     
     override fun onCreate() {
@@ -142,10 +148,16 @@ class GestureRecognitionService : LifecycleService() {
                 // 配置图像捕获用例
                 val imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    // 设置目标旋转，这样输出的图像就是正确方向
+                    .setTargetRotation(getDisplayRotation())
+                    // 设置镜像模式，前置摄像头需要水平镜像
+                    .setTargetResolution(android.util.Size(640, 480))
                     .build()
                 
-                // 选择后置摄像头
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                // 选择前置摄像头
+                val cameraSelector = CameraSelector.Builder()
+                    .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
+                    .build()
                 
                 // 绑定用例到生命周期
                 camera = cameraProvider?.bindToLifecycle(
@@ -166,6 +178,25 @@ class GestureRecognitionService : LifecycleService() {
                 e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+    
+    /**
+     * 获取屏幕旋转角度（返回 Surface.ROTATION_* 常量）。
+     * 对于前台服务没有可视窗口的情况，若获取失败则返回 ROTATION_0。
+     */
+    private fun getDisplayRotation(): Int {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // 尝试通过 Context 的 display 属性获取旋转信息
+                this.display?.rotation ?: Surface.ROTATION_0
+            } else {
+                @Suppress("DEPRECATION")
+                (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "无法获取 Display rotation，使用默认 ROTATION_0: ${e.message}")
+            Surface.ROTATION_0
+        }
     }
     
     /**
@@ -196,9 +227,27 @@ class GestureRecognitionService : LifecycleService() {
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
                     try {
-                        // 将ImageProxy转换为Bitmap
-                        val bitmap = imageProxyToBitmap(image)
+                        // 将ImageProxy转换为Bitmap，并进行镜像处理
+                        val bitmap = imageProxyToBitmap(image)?.let { originalBitmap ->
+                            // 创建镜像矩阵
+                            val matrix = Matrix().apply {
+                                // 水平镜像
+                                postScale(-1f, 1f, originalBitmap.width / 2f, originalBitmap.height / 2f)
+                            }
+                            
+                            // 创建新的镜像Bitmap
+                            Bitmap.createBitmap(
+                                originalBitmap,
+                                0, 0,
+                                originalBitmap.width, originalBitmap.height,
+                                matrix,
+                                true
+                            )
+                        }
+                        
                         if (bitmap != null) {
+                            // 更新预览图像
+                            lastPreviewImage = bitmap
                             // 进行手势识别
                             handLandmarkerDetector.detect(bitmap, System.currentTimeMillis())
                         }
