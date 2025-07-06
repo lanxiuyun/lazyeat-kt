@@ -43,8 +43,8 @@ class HomeFragment : Fragment() {
     private val updateRunnable = object : Runnable {
         override fun run() {
             updateUIFromService()
-            // 每100毫秒更新一次UI
-            mainHandler.postDelayed(this, 100)
+            // 每20毫秒更新一次UI
+            mainHandler.postDelayed(this,20)
         }
     }
     
