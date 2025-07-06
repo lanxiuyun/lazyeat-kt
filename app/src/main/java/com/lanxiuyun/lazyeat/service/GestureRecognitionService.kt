@@ -19,6 +19,7 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import com.lanxiuyun.lazyeat.HandLandmarkerDetector
 import com.lanxiuyun.lazyeat.MainActivity
 import com.lanxiuyun.lazyeat.R
+import com.lanxiuyun.lazyeat.utils.LogUtils
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.graphics.ImageFormat
@@ -69,6 +70,13 @@ class GestureRecognitionService : LifecycleService() {
         var lastHandLandmarkerResult: HandLandmarkerResult? = null  // 最近一次的详细识别数据
         @Volatile
         var lastPreviewImage: Bitmap? = null  // 最近一次的预览图像
+        
+        /**
+         * 设置日志等级
+         */
+        fun setLogLevel(level: Int) {
+            LogUtils.setLogLevel(level)
+        }
     }
     
     /**
@@ -77,7 +85,7 @@ class GestureRecognitionService : LifecycleService() {
      */
     override fun onCreate() {
         super.onCreate()
-        Log.i(TAG, "手势识别服务创建")
+        LogUtils.i(TAG, "手势识别服务创建")
         
         // 创建单线程执行器用于相机操作
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -98,7 +106,7 @@ class GestureRecognitionService : LifecycleService() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        Log.i(TAG, "手势识别服务启动")
+        LogUtils.i(TAG, "手势识别服务启动")
         
         // 将服务升级为前台服务，避免被系统回收
         startForeground(NOTIFICATION_ID, createNotification("手势识别服务运行中"))
@@ -115,7 +123,7 @@ class GestureRecognitionService : LifecycleService() {
      */
     override fun onDestroy() {
         super.onDestroy()
-        Log.i(TAG, "手势识别服务销毁")
+        LogUtils.i(TAG, "手势识别服务销毁")
         
         cameraExecutor.shutdown()  // 关闭相机执行器
         handLandmarkerDetector.release()  // 释放识别器资源
@@ -204,10 +212,10 @@ class GestureRecognitionService : LifecycleService() {
                 
                 this.imageAnalysis = imageAnalysis
                 
-                Log.i(TAG, "摄像头启动成功")
+                LogUtils.i(TAG, "摄像头启动成功")
                 
             } catch (e: Exception) {
-                Log.e(TAG, "摄像头启动失败: ${e.message}")
+                LogUtils.e(TAG, "摄像头启动失败: ${e.message}")
                 e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(this))
@@ -227,7 +235,7 @@ class GestureRecognitionService : LifecycleService() {
                 (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
             }
         } catch (e: Exception) {
-            Log.w(TAG, "获取屏幕旋转失败，使用默认值: ${e.message}")
+            LogUtils.w(TAG, "获取屏幕旋转失败，使用默认值: ${e.message}")
             Surface.ROTATION_0  // 获取失败时使用默认值
         }
     }
@@ -267,7 +275,7 @@ class GestureRecognitionService : LifecycleService() {
                 Bitmap.createBitmap(bitmap, 0, 0, imageProxy.width, imageProxy.height)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "ImageProxy 转 Bitmap 失败: ${e.message}")
+            LogUtils.e(TAG, "ImageProxy 转 Bitmap 失败: ${e.message}")
             null
         }
     }
@@ -343,12 +351,12 @@ class GestureRecognitionService : LifecycleService() {
 
             if (bitmap != null) {
                 // 更新最近预览
-                lastPreviewImage = bitmap
+                updatePreviewImage(bitmap)
                 // 执行手势识别（异步）
                 handLandmarkerDetector.detect(bitmap, System.currentTimeMillis())
             }
         } catch (e: Exception) {
-            Log.e(TAG, "图像处理失败: ${e.message}")
+            LogUtils.e(TAG, "图像处理失败: ${e.message}")
         } finally {
             // VERY VERY IMPORTANT：释放当前帧资源
             image.close()
@@ -360,7 +368,7 @@ class GestureRecognitionService : LifecycleService() {
      * @param result MediaPipe手势识别结果
      */
     private fun handleGestureResult(result: HandLandmarkerResult?) {
-        lastHandLandmarkerResult = result
+        updateHandLandmarkerResult(result)
         
         // 生成识别结果文本
         val gestureText = if (result != null && result.landmarks().isNotEmpty()) {
@@ -371,10 +379,10 @@ class GestureRecognitionService : LifecycleService() {
         }
         
         // 更新状态和通知
-        currentGestureResult = gestureText
+        updateGestureResult(gestureText)
         updateNotification(gestureText)
         
-        Log.d(TAG, "手势识别结果: $gestureText")
+        LogUtils.i(TAG, "手势识别结果: $gestureText")
     }
     
     /**
@@ -384,5 +392,33 @@ class GestureRecognitionService : LifecycleService() {
     private fun updateNotification(content: String) {
         val notification = createNotification(content)
         notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+    
+    /**
+     * 更新手势识别结果
+     */
+    private fun updateGestureResult(result: String) {
+        currentGestureResult = result
+        LogUtils.i(TAG, "手势识别结果: $result")
+    }
+    
+    /**
+     * 更新手部识别结果
+     */
+    private fun updateHandLandmarkerResult(result: HandLandmarkerResult?) {
+        lastHandLandmarkerResult = result
+        if (result != null) {
+            LogUtils.d(TAG, "检测到 ${result.handednesses().size} 只手")
+        }
+    }
+    
+    /**
+     * 更新预览图像
+     */
+    private fun updatePreviewImage(image: Bitmap?) {
+        lastPreviewImage = image
+        if (image != null) {
+            LogUtils.v(TAG, "更新预览图像: ${image.width}x${image.height}")
+        }
     }
 } 

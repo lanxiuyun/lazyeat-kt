@@ -3,12 +3,12 @@ package com.lanxiuyun.lazyeat
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
-import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import com.lanxiuyun.lazyeat.utils.LogUtils
 import kotlin.math.max
 import kotlin.math.min
 
@@ -46,14 +46,14 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
 
     init {
         initPaints()
-        Log.i(TAG, "HandOverlayView 初始化完成")
+        LogUtils.i(TAG, "HandOverlayView 初始化完成")
     }
 
     /**
      * 清除绘制内容
      */
     fun clear() {
-        Log.d(TAG, "清除手部覆盖视图")
+        LogUtils.d(TAG, "清除手部覆盖视图")
         results = null
         previewBitmap = null
         linePaint.reset()
@@ -82,9 +82,9 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
             pointPaint.style = Paint.Style.FILL
             pointPaint.isAntiAlias = true
             
-            Log.d(TAG, "画笔初始化完成")
+            LogUtils.d(TAG, "画笔初始化完成")
         } catch (e: Exception) {
-            Log.e(TAG, "画笔初始化失败: ${e.message}")
+            LogUtils.e(TAG, "画笔初始化失败: ${e.message}")
             // 使用默认颜色作为备选
             linePaint.color = Color.CYAN
             pointPaint.color = Color.YELLOW
@@ -113,7 +113,7 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
                 // 遍历所有检测到的手
                 for (handIndex in handLandmarkerResult.landmarks().indices) {
                     val landmark = handLandmarkerResult.landmarks()[handIndex]
-                    Log.i(TAG, "绘制第 ${handIndex + 1} 只手，关键点数量: ${landmark.size}")
+                    LogUtils.d(TAG, "绘制第 ${handIndex + 1} 只手，关键点数量: ${landmark.size}")
                     
                     // 绘制每个关键点
                     for (pointIndex in landmark.indices) {
@@ -138,7 +138,7 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "绘制手部关键点失败: ${e.message}")
+                LogUtils.e(TAG, "绘制手部关键点失败: ${e.message}")
                 e.printStackTrace()
             }
         }
@@ -166,7 +166,7 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         imageWidth: Int,
         runningMode: RunningMode = RunningMode.LIVE_STREAM
     ) {
-        Log.d(TAG, "设置手部识别结果，图像尺寸: ${imageWidth}x${imageHeight}，视图尺寸: ${width}x${height}")
+        LogUtils.d(TAG, "设置手部识别结果，图像尺寸: ${imageWidth}x${imageHeight}，视图尺寸: ${width}x${height}")
         
         results = handLandmarkerResults
         this.imageHeight = imageHeight
@@ -186,7 +186,7 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
             }
         }
         
-        Log.d(TAG, "缩放因子: $scaleFactor")
+        LogUtils.d(TAG, "缩放因子: $scaleFactor")
         
         // 触发重绘
         invalidate()

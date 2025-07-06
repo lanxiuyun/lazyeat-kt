@@ -9,18 +9,18 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import com.lanxiuyun.lazyeat.HandOverlayView
+import com.lanxiuyun.lazyeat.R
 import com.lanxiuyun.lazyeat.databinding.FragmentHomeBinding
 import com.lanxiuyun.lazyeat.service.GestureRecognitionService
 import com.lanxiuyun.lazyeat.service.ServiceManager
+import com.lanxiuyun.lazyeat.utils.LogUtils
 
 /**
  * 手势识别Fragment
@@ -36,6 +36,7 @@ class HomeFragment : Fragment() {
     private lateinit var handOverlayView: HandOverlayView
     private lateinit var startServiceButton: Button
     private lateinit var stopServiceButton: Button
+    private lateinit var logLevelSpinner: Spinner
     
     // 用于定期更新UI的Handler
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -65,16 +66,20 @@ class HomeFragment : Fragment() {
         // 初始化UI组件
         gestureResultText = binding.gestureResultText
         handOverlayView = binding.handOverlay
+        logLevelSpinner = binding.logLevelSpinner
+        
+        // 设置日志等级选择器
+        setupLogLevelSpinner()
         
         // 设置初始状态
         updateGestureResult("等待启动手势识别服务...")
         
         // 检查并请求相机权限
         if (allPermissionsGranted()) {
-            Log.i(TAG, "相机权限已获取")
+            LogUtils.i(TAG, "相机权限已获取")
             setupServiceControls()
         } else {
-            Log.i(TAG, "请求相机权限")
+            LogUtils.i(TAG, "请求相机权限")
             ActivityCompat.requestPermissions(
                 requireActivity(), REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS
             )
@@ -108,13 +113,13 @@ class HomeFragment : Fragment() {
      */
     private fun startGestureRecognitionService() {
         try {
-            Log.i(TAG, "启动手势识别服务")
+            LogUtils.i(TAG, "启动手势识别服务")
             ServiceManager.startGestureRecognitionService(requireContext())
             updateGestureResult("正在启动手势识别服务...")
             updateButtonStates()
             Toast.makeText(requireContext(), "手势识别服务已启动", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Log.e(TAG, "启动服务失败: ${e.message}")
+            LogUtils.e(TAG, "启动服务失败: ${e.message}")
             Toast.makeText(requireContext(), "启动服务失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
@@ -124,13 +129,13 @@ class HomeFragment : Fragment() {
      */
     private fun stopGestureRecognitionService() {
         try {
-            Log.i(TAG, "停止手势识别服务")
+            LogUtils.i(TAG, "停止手势识别服务")
             ServiceManager.stopGestureRecognitionService(requireContext())
             updateGestureResult("手势识别服务已停止")
             updateButtonStates()
             Toast.makeText(requireContext(), "手势识别服务已停止", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Log.e(TAG, "停止服务失败: ${e.message}")
+            LogUtils.e(TAG, "停止服务失败: ${e.message}")
             Toast.makeText(requireContext(), "停止服务失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
@@ -178,7 +183,7 @@ class HomeFragment : Fragment() {
             updateButtonStates()
             
         } catch (e: Exception) {
-            Log.e(TAG, "更新UI失败: ${e.message}")
+            LogUtils.e(TAG, "更新UI失败: ${e.message}")
         }
     }
     
@@ -200,7 +205,7 @@ class HomeFragment : Fragment() {
                 com.google.mediapipe.tasks.vision.core.RunningMode.LIVE_STREAM
             )
         } catch (e: Exception) {
-            Log.e(TAG, "更新手部覆盖视图失败: ${e.message}")
+            LogUtils.e(TAG, "更新手部覆盖视图失败: ${e.message}")
         }
     }
     
@@ -211,7 +216,7 @@ class HomeFragment : Fragment() {
         try {
             handOverlayView.clear()
         } catch (e: Exception) {
-            Log.e(TAG, "清除手部覆盖视图失败: ${e.message}")
+            LogUtils.e(TAG, "清除手部覆盖视图失败: ${e.message}")
         }
     }
     
@@ -223,7 +228,7 @@ class HomeFragment : Fragment() {
         try {
             gestureResultText.text = result
         } catch (e: Exception) {
-            Log.e(TAG, "更新手势结果显示失败: ${e.message}")
+            LogUtils.e(TAG, "更新手势结果显示失败: ${e.message}")
         }
     }
     
@@ -232,6 +237,65 @@ class HomeFragment : Fragment() {
      */
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED
+    }
+    
+    /**
+     * 设置日志等级选择器
+     */
+    private fun setupLogLevelSpinner() {
+        // 创建适配器
+        ArrayAdapter.createFromResource(
+            requireContext(),
+            R.array.log_levels,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            // 指定下拉列表的布局样式
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            // 将适配器应用到spinner
+            logLevelSpinner.adapter = adapter
+            
+            // 设置默认选择为WARN
+            val defaultPosition = adapter.getPosition("WARN")
+            if (defaultPosition != -1) {
+                logLevelSpinner.setSelection(defaultPosition)
+            }
+        }
+
+        // 设置选择监听器
+        logLevelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View?, pos: Int, id: Long) {
+                val selectedLevel = parent.getItemAtPosition(pos).toString()
+                updateLogLevel(selectedLevel)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>) {
+                // 不做任何处理
+            }
+        }
+    }
+
+    /**
+     * 更新日志等级
+     */
+    private fun updateLogLevel(level: String) {
+        val logLevel = when (level) {
+            "VERBOSE" -> Log.VERBOSE
+            "DEBUG" -> Log.DEBUG
+            "INFO" -> Log.INFO
+            "WARN" -> Log.WARN
+            "ERROR" -> Log.ERROR
+            else -> Log.INFO
+        }
+        
+        // 更新日志等级
+        try {
+            GestureRecognitionService.setLogLevel(logLevel)
+            LogUtils.i(TAG, "日志等级已更新为: $level")
+            Toast.makeText(requireContext(), "日志等级已更新为: $level", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            LogUtils.e(TAG, "更新日志等级失败: ${e.message}")
+            Toast.makeText(requireContext(), "更新日志等级失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
     
     override fun onResume() {
@@ -251,6 +315,6 @@ class HomeFragment : Fragment() {
         // 停止定期更新UI
         mainHandler.removeCallbacks(updateRunnable)
         _binding = null
-        Log.i(TAG, "HomeFragment 资源已释放")
+        LogUtils.i(TAG, "HomeFragment 资源已释放")
     }
 }
