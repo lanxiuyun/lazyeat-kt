@@ -71,6 +71,19 @@ class MousePointerService : Service() {
         }
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            "UPDATE_POINTER" -> {
+                val x = intent.getIntExtra("x", -1)
+                val y = intent.getIntExtra("y", -1)
+                if (x != -1 && y != -1) {
+                    updatePointerPosition(x, y)
+                }
+            }
+        }
+        return START_STICKY
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {

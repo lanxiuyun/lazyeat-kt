@@ -52,6 +52,11 @@ class GestureRecognitionService : LifecycleService() {
     private var imageAnalysis: ImageAnalysis? = null         // 新增：图像分析用例（连续帧）
     private lateinit var cameraExecutor: ExecutorService     // 相机操作的执行器
     private lateinit var handLandmarkerDetector: HandLandmarkerDetector  // 手势识别器
+
+    // 添加MousePointerService的Intent
+    private val mousePointerIntent by lazy {
+        Intent(this, MousePointerService::class.java)
+    }
     
     // 通知管理器，用于处理前台服务通知
     private val notificationManager by lazy {
@@ -108,6 +113,9 @@ class GestureRecognitionService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
         LogUtils.i(TAG, "手势识别服务启动")
         
+        // 启动MousePointerService
+        startService(mousePointerIntent)
+        
         // 将服务升级为前台服务，避免被系统回收
         startForeground(NOTIFICATION_ID, createNotification("手势识别服务运行中"))
         
@@ -124,6 +132,9 @@ class GestureRecognitionService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         LogUtils.i(TAG, "手势识别服务销毁")
+        
+        // 停止MousePointerService
+        stopService(mousePointerIntent)
         
         cameraExecutor.shutdown()  // 关闭相机执行器
         handLandmarkerDetector.release()  // 释放识别器资源
@@ -300,6 +311,27 @@ class GestureRecognitionService : LifecycleService() {
         // 生成识别结果文本
         val gestureText = if (result != null && result.landmarks().isNotEmpty()) {
             val handCount = result.landmarks().size
+            
+            // 获取第一只手的拇指坐标（第4个关键点是拇指尖）
+            result.landmarks().firstOrNull()?.let { landmarks ->
+                val thumb = landmarks[4]
+                // 将归一化坐标转换为屏幕坐标
+                val screenWidth = resources.displayMetrics.widthPixels
+                val screenHeight = resources.displayMetrics.heightPixels
+                val x = (thumb.x() * screenWidth).toInt()
+                val y = (thumb.y() * screenHeight).toInt()
+                
+                // 发送坐标到MousePointerService
+                val updateIntent = Intent(this, MousePointerService::class.java).apply {
+                    action = "UPDATE_POINTER"
+                    putExtra("x", x)
+                    putExtra("y", y)
+                }
+                startService(updateIntent)
+                
+                LogUtils.d(TAG, "拇指坐标: x=$x, y=$y")
+            }
+            
             "检测到 $handCount 只手"
         } else {
             "未检测到手部"
