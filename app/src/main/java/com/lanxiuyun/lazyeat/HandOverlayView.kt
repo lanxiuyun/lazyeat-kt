@@ -22,6 +22,8 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         private const val TAG = "HandOverlayView"
         // 关键点线条宽度
         private const val LANDMARK_STROKE_WIDTH = 8F
+        // 控制区域的相对大小（占视图宽度的比例）
+        private const val CONTROL_AREA_RATIO = 0.5f  // 控制区域占比约1/2
     }
 
     // 手部识别结果
@@ -43,6 +45,11 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
     // 图像尺寸
     private var imageWidth: Int = 1
     private var imageHeight: Int = 1
+
+    // 控制区域的Paint
+    private val controlAreaPaint = Paint()
+    // 控制区域的范围
+    private var controlAreaRect = RectF()
 
     init {
         initPaints()
@@ -81,6 +88,13 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
             pointPaint.strokeWidth = LANDMARK_STROKE_WIDTH
             pointPaint.style = Paint.Style.FILL
             pointPaint.isAntiAlias = true
+
+            // 初始化控制区域画笔
+            controlAreaPaint.apply {
+                color = Color.parseColor("#40673AB7")  // 调整透明度为25%
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
             
             LogUtils.d(TAG, "画笔初始化完成")
         } catch (e: Exception) {
@@ -88,6 +102,38 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
             // 使用默认颜色作为备选
             linePaint.color = Color.CYAN
             pointPaint.color = Color.YELLOW
+            controlAreaPaint.color = Color.parseColor("#40673AB7")
+        }
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        
+        // 判断是否是横屏
+        val isLandscape = w > h
+        
+        if (isLandscape) {
+            // 横屏时，以高度为基准
+            val controlHeight = h * CONTROL_AREA_RATIO
+            val controlWidth = controlHeight * 3f / 4f  // 保持3:4比例
+            
+            // 计算居中位置
+            val left = (w - controlWidth) / 2
+            val top = (h - controlHeight) / 2
+            
+            controlAreaRect.set(left, top, left + controlWidth, top + controlHeight)
+            LogUtils.d(TAG, "横屏 - 控制区域设置完成: left=$left, top=$top, width=$controlWidth, height=$controlHeight")
+        } else {
+            // 竖屏时，以宽度为基准
+            val controlWidth = w * CONTROL_AREA_RATIO
+            val controlHeight = controlWidth * 4f / 3f  // 保持4:3比例
+            
+            // 计算居中位置
+            val left = (w - controlWidth) / 2
+            val top = (h - controlHeight) / 2
+            
+            controlAreaRect.set(left, top, left + controlWidth, top + controlHeight)
+            LogUtils.d(TAG, "竖屏 - 控制区域设置完成: left=$left, top=$top, width=$controlWidth, height=$controlHeight")
         }
     }
 
@@ -106,6 +152,9 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
             // 绘制预览图像
             canvas.drawBitmap(bitmap, srcRect, dstRect, previewPaint)
         }
+
+        // 绘制控制区域
+        canvas.drawRect(controlAreaRect, controlAreaPaint)
         
         // 绘制手部关键点和连接线
         results?.let { handLandmarkerResult ->
@@ -174,5 +223,34 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
 
         // 触发重绘
         invalidate()
+    }
+
+    /**
+     * 检查点是否在控制区域内并返回相对位置
+     * 如果点超出控制区域，则返回最近的边界值
+     * @param x 点的x坐标
+     * @param y 点的y坐标
+     * @return Pair<Float, Float> 返回相对位置(0-1)
+     */
+    fun getRelativePosition(x: Float, y: Float): Pair<Float, Float> {
+        // 计算相对于控制区域的位置，处理越界情况
+        val clampedX = x.coerceIn(controlAreaRect.left, controlAreaRect.right)
+        val clampedY = y.coerceIn(controlAreaRect.top, controlAreaRect.bottom)
+        
+        // 计算相对位置
+        val relativeX = (clampedX - controlAreaRect.left) / controlAreaRect.width()
+        val relativeY = (clampedY - controlAreaRect.top) / controlAreaRect.height()
+        
+        // 确保返回值在0-1范围内
+        return Pair(
+            relativeX.coerceIn(0f, 1f),
+            relativeY.coerceIn(0f, 1f)
+        ).also {
+            if (x != clampedX || y != clampedY) {
+                LogUtils.d(TAG, "点(x=$x, y=$y)超出控制区域，已限制为(x=$clampedX, y=$clampedY)")
+            }
+            LogUtils.d(TAG, "控制区域映射: 输入(x=$x, y=$y) -> 输出(x=${it.first}, y=${it.second})")
+            LogUtils.d(TAG, "控制区域范围: left=${controlAreaRect.left}, top=${controlAreaRect.top}, right=${controlAreaRect.right}, bottom=${controlAreaRect.bottom}")
+        }
     }
 } 

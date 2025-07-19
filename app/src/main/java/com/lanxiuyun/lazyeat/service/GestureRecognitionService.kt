@@ -305,21 +305,36 @@ class GestureRecognitionService : LifecycleService() {
             // 获取第一只手的拇指坐标（第4个关键点是拇指尖）
             result.landmarks().firstOrNull()?.let { landmarks ->
                 val thumb = landmarks[4]
-                // 将归一化坐标转换为屏幕坐标
-                val screenWidth = resources.displayMetrics.widthPixels
-                val screenHeight = resources.displayMetrics.heightPixels
-                val x = (thumb.x() * screenWidth).toInt()
-                val y = (thumb.y() * screenHeight).toInt()
+                // 直接使用归一化坐标
+                val viewX = thumb.x()
+                val viewY = thumb.y()
                 
-                // 发送坐标到MousePointerService
-                val updateIntent = Intent(this, MousePointerService::class.java).apply {
-                    action = "UPDATE_POINTER"
-                    putExtra("x", x)
-                    putExtra("y", y)
+                // 获取HandOverlayView的尺寸
+                MainActivity.handOverlayView?.let { overlayView ->
+                    val viewWidth = overlayView.measuredWidth.toFloat()
+                    val viewHeight = overlayView.measuredHeight.toFloat()
+                    
+                    // 获取映射坐标（现在总是返回有效值）
+                    val (relativeX, relativeY) = overlayView.getRelativePosition(viewX * viewWidth, viewY * viewHeight)
+                    
+                    // 获取屏幕尺寸
+                    val screenWidth = resources.displayMetrics.widthPixels
+                    val screenHeight = resources.displayMetrics.heightPixels
+                    
+                    // 计算最终屏幕坐标
+                    val screenX = (relativeX * screenWidth).toInt()
+                    val screenY = (relativeY * screenHeight).toInt()
+                    
+                    // 发送坐标到MousePointerService
+                    val updateIntent = Intent(this, MousePointerService::class.java).apply {
+                        action = "UPDATE_POINTER"
+                        putExtra("x", screenX as Int)
+                        putExtra("y", screenY as Int)
+                    }
+                    startService(updateIntent)
+                    
+                    LogUtils.d(TAG, "拇指位置映射: x=$screenX, y=$screenY")
                 }
-                startService(updateIntent)
-                
-                LogUtils.d(TAG, "拇指坐标: x=$x, y=$y")
             }
             
             "检测到 $handCount 只手"

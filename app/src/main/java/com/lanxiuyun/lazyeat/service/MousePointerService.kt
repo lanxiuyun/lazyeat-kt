@@ -40,7 +40,8 @@ class MousePointerService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,  // 添加这个标志允许超出屏幕边界
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.START or Gravity.TOP
@@ -63,9 +64,18 @@ class MousePointerService : Service() {
 
         try {
             val params = mousePointerView.layoutParams as WindowManager.LayoutParams
-            params.x = x
-            params.y = y
+            
+            // 获取屏幕尺寸
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+                        
+            // 限制坐标范围，考虑指针尺寸
+            params.x = x.coerceIn(0, screenWidth - 10)
+            params.y = y.coerceIn(0, screenHeight - 200)
+            
             windowManager.updateViewLayout(mousePointerView, params)
+            LogUtils.d(TAG, "更新鼠标位置: x=${params.x}, y=${params.y}, 屏幕: ${screenWidth}x${screenHeight}")
         } catch (e: Exception) {
             LogUtils.e(TAG, "更新鼠标位置失败: ${e.message}")
         }

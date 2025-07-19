@@ -19,6 +19,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.lanxiuyun.lazyeat.service.MousePointerManager
 import com.lanxiuyun.lazyeat.service.ServiceManager
 import com.lanxiuyun.lazyeat.utils.LogUtils
+import com.lanxiuyun.lazyeat.HandOverlayView
 
 /**
  * 主Activity，负责导航控制和权限请求
@@ -37,11 +38,16 @@ class MainActivity : AppCompatActivity() {
         } else {
             arrayOf(Manifest.permission.CAMERA)
         }
+        // 添加HandOverlayView的静态引用
+        var handOverlayView: HandOverlayView? = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // 获取HandOverlayView引用
+        handOverlayView = findViewById(R.id.hand_overlay)
 
         // 检查并请求权限
         if (!allPermissionsGranted()) {
