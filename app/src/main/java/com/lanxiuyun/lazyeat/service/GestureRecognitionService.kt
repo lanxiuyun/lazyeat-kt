@@ -198,7 +198,6 @@ class GestureRecognitionService : LifecycleService() {
                 
                 // 创建连续图像流 (ImageAnalysis) 用例，替代 ImageCapture
                 val imageAnalysis = ImageAnalysis.Builder()
-                    .setTargetRotation(getDisplayRotation())  // 设置正确方向，防止图像旋转错误
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)  // 4:3 比例，与模型训练一致
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)  // 只处理最新一帧，降低延迟
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)  // 直接输出RGBA格式
@@ -230,25 +229,6 @@ class GestureRecognitionService : LifecycleService() {
                 e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(this))
-    }
-    
-    /**
-     * 获取屏幕旋转角度
-     * @return Surface.ROTATION_* 常量值
-     */
-    private fun getDisplayRotation(): Int {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11及以上使用新API
-                this.display?.rotation ?: Surface.ROTATION_0
-            } else {
-                @Suppress("DEPRECATION")
-                (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
-            }
-        } catch (e: Exception) {
-            LogUtils.w(TAG, "获取屏幕旋转失败，使用默认值: ${e.message}")
-            Surface.ROTATION_0  // 获取失败时使用默认值
-        }
     }
     
     /**
