@@ -118,8 +118,9 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
                     // 绘制每个关键点
                     for (pointIndex in landmark.indices) {
                         val normalizedLandmark = landmark[pointIndex]
-                        val x = normalizedLandmark.x() * imageWidth * scaleFactor
-                        val y = normalizedLandmark.y() * imageHeight * scaleFactor
+                        // 直接使用归一化坐标映射到视图尺寸
+                        val x = normalizedLandmark.x() * width
+                        val y = normalizedLandmark.y() * height
                         
                         canvas.drawPoint(x, y, pointPaint)
                     }
@@ -129,10 +130,11 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
                         val startPoint = landmark.get(connection!!.start())
                         val endPoint = landmark.get(connection.end())
                         
-                        val startX = startPoint.x() * imageWidth * scaleFactor
-                        val startY = startPoint.y() * imageHeight * scaleFactor
-                        val endX = endPoint.x() * imageWidth * scaleFactor
-                        val endY = endPoint.y() * imageHeight * scaleFactor
+                        // 直接使用归一化坐标映射到视图尺寸
+                        val startX = startPoint.x() * width
+                        val startY = startPoint.y() * height
+                        val endX = endPoint.x() * width
+                        val endY = endPoint.y() * height
                         
                         canvas.drawLine(startX, startY, endX, endY, linePaint)
                     }
@@ -170,27 +172,6 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         
         results = handLandmarkerResults
 
-        // 根据屏幕方向调整图像尺寸
-        val isPortrait = height > width
-        this.imageWidth = if (isPortrait) imageHeight else imageWidth
-        this.imageHeight = if (isPortrait) imageWidth else imageHeight
-
-        // 根据运行模式计算缩放因子
-        scaleFactor = when (runningMode) {
-            RunningMode.IMAGE,
-            RunningMode.VIDEO -> {
-                // 图像和视频模式：保持宽高比，居中显示
-                min(width * 1f / this.imageWidth, height * 1f / this.imageHeight)
-            }
-            RunningMode.LIVE_STREAM -> {
-                // 实时流模式：PreviewView使用FILL_START模式
-                // 需要放大关键点以匹配捕获图像的显示尺寸
-                max(width * 1f / this.imageWidth, height * 1f / this.imageHeight)
-            }
-        }
-        
-        LogUtils.d(TAG, "缩放因子: $scaleFactor，调整后尺寸: ${this.imageWidth}x${this.imageHeight}")
-        
         // 触发重绘
         invalidate()
     }
