@@ -169,24 +169,27 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         LogUtils.d(TAG, "设置手部识别结果，图像尺寸: ${imageWidth}x${imageHeight}，视图尺寸: ${width}x${height}")
         
         results = handLandmarkerResults
-        this.imageHeight = imageHeight
-        this.imageWidth = imageWidth
+
+        // 根据屏幕方向调整图像尺寸
+        val isPortrait = height > width
+        this.imageWidth = if (isPortrait) imageHeight else imageWidth
+        this.imageHeight = if (isPortrait) imageWidth else imageHeight
 
         // 根据运行模式计算缩放因子
         scaleFactor = when (runningMode) {
             RunningMode.IMAGE,
             RunningMode.VIDEO -> {
                 // 图像和视频模式：保持宽高比，居中显示
-                min(width * 1f / imageWidth, height * 1f / imageHeight)
+                min(width * 1f / this.imageWidth, height * 1f / this.imageHeight)
             }
             RunningMode.LIVE_STREAM -> {
                 // 实时流模式：PreviewView使用FILL_START模式
                 // 需要放大关键点以匹配捕获图像的显示尺寸
-                max(width * 1f / imageWidth, height * 1f / imageHeight)
+                max(width * 1f / this.imageWidth, height * 1f / this.imageHeight)
             }
         }
         
-        LogUtils.d(TAG, "缩放因子: $scaleFactor")
+        LogUtils.d(TAG, "缩放因子: $scaleFactor，调整后尺寸: ${this.imageWidth}x${this.imageHeight}")
         
         // 触发重绘
         invalidate()
