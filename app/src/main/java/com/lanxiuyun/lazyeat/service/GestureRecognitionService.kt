@@ -248,14 +248,24 @@ class GestureRecognitionService : LifecycleService() {
             }
 
             // 2. 处理图像旋转和镜像
-            val rotationDegrees = image.imageInfo.rotationDegrees
-            val matrix = Matrix().apply {
-                // 将图像旋转到自然朝向
-                postRotate(rotationDegrees.toFloat())
-                // 前置摄像头保持与真人一致的左右方向
-                postScale(-1f, 1f, bitmap.width / 2f, bitmap.height / 2f)
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val rotation = windowManager.defaultDisplay.rotation
+            val degrees = when (rotation) {
+                Surface.ROTATION_0 -> 90
+                Surface.ROTATION_90 -> 0
+                Surface.ROTATION_180 -> 270
+                Surface.ROTATION_270 -> 180
+                else -> 90
             }
             
+            val matrix = Matrix().apply {
+                // 前置相机需要水平翻转以保持镜像效果
+                postScale(-1f, 1f)
+                // 根据设备实际方向旋转
+                postRotate(degrees.toFloat())
+            }
+            
+            // 创建旋转和镜像后的新图像
             val processedBitmap = Bitmap.createBitmap(
                 bitmap,
                 0,
