@@ -117,7 +117,7 @@ class GestureRecognitionService : LifecycleService() {
      */
     inner class GestureStateMachine {
         // 配置参数
-        private val gestureHoldTime = 300L      // 手势保持时间（毫秒）
+        private val gestureHoldTime = 150L      // 手势保持时间（毫秒）- 越小越灵敏
         private val cooldownTime = 800L         // 冷却时间（毫秒）
 
         private var gestureStartTime: Long = 0
