@@ -115,18 +115,18 @@ implementation("androidx.lifecycle:lifecycle-service:2.7.0")
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE: 未检测到手
-    
+
     IDLE --> POINTING_UP: 检测到手，角度符合向上
     IDLE --> POINTING_DOWN: 检测到手，角度符合向下
-    
+
     POINTING_UP --> SWIPE_UP: 保持向上 > 500ms
     POINTING_DOWN --> SWIPE_DOWN: 保持向下 > 500ms
-    
-    SWIPE_UP --> COOLING: 执行向上滑动
-    SWIPE_DOWN --> COOLING: 执行向下滑动
-    
+
+    SWIPE_UP --> COOLING: 执行向下滑动（上一个视频）
+    SWIPE_DOWN --> COOLING: 执行向上滑动（下一个视频）
+
     COOLING --> IDLE: 冷却 2s 结束
-    
+
     POINTING_UP --> IDLE: 手移开/方向改变
     POINTING_DOWN --> IDLE: 手移开/方向改变
 ```
