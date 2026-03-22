@@ -646,8 +646,8 @@ class GestureRecognitionService : LifecycleService() {
 
         val stateText = when (Companion.currentGestureState) {
             GestureState.IDLE -> "等待中"
-            GestureState.POINTING_UP -> "向上保持中..."
-            GestureState.POINTING_DOWN -> "向下保持中..."
+            GestureState.POINTING_UP -> "向上保持"
+            GestureState.POINTING_DOWN -> "向下保持"
             GestureState.SWIPING_UP -> "触发上滑！"
             GestureState.SWIPING_DOWN -> "触发下滑！"
             GestureState.COOLING -> "冷却中..."
