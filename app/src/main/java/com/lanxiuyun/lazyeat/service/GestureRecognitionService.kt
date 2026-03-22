@@ -465,15 +465,23 @@ class GestureRecognitionService : LifecycleService() {
 
     /**
      * 处理手势动作
+     * 注意：抖音的滑动逻辑与直觉相反
+     * - 向上滑动（从下到上）→ 切换到下一个视频
+     * - 向下滑动（从上到下）→ 切换到上一个视频
+     * 因此手指方向与滑动方向相反：
+     * - 手指向下指 👇 → 向上滑动（下一个视频）
+     * - 手指向上指 ☝️ → 向下滑动（上一个视频）
      */
     private fun handleGestureAction(action: GestureAction) {
         when (action) {
             GestureAction.TRIGGER_SWIPE_UP -> {
-                performSwipeUp()
+                // 手指向上指 ☝️ → 向下滑动 → 上一个视频
+                performSwipeDown()
                 gestureStateMachine.markSwipeCompleted()
             }
             GestureAction.TRIGGER_SWIPE_DOWN -> {
-                performSwipeDown()
+                // 手指向下指 👇 → 向上滑动 → 下一个视频
+                performSwipeUp()
                 gestureStateMachine.markSwipeCompleted()
             }
             else -> { /* 其他动作无需处理 */ }
@@ -481,11 +489,11 @@ class GestureRecognitionService : LifecycleService() {
     }
 
     /**
-     * 执行向上滑动 - 切换到上一个视频
-     * 使用输入子系统直接注入触摸事件
+     * 执行向上滑动（从屏幕下方向上滑）- 切换到下一个视频
+     * 对应手指向下指的手势
      */
     private fun performSwipeUp() {
-        LogUtils.i(TAG, "执行向上滑动 ☝️")
+        LogUtils.i(TAG, "执行向上滑动 👇 → 下一个视频")
 
         val displayMetrics = resources.displayMetrics
         val centerX = displayMetrics.widthPixels / 2
@@ -506,14 +514,15 @@ class GestureRecognitionService : LifecycleService() {
         tryInjectSwipe(centerX, centerY, -swipeDistance)
 
         // 更新状态
-        updateGestureResult("向上滑动 ☝️ - 上一个视频")
+        updateGestureResult("向上滑动 👇 → 下一个视频")
     }
 
     /**
-     * 执行向下滑动 - 切换到下一个视频
+     * 执行向下滑动（从屏幕上方往下滑）- 切换到上一个视频
+     * 对应手指向上指的手势
      */
     private fun performSwipeDown() {
-        LogUtils.i(TAG, "执行向下滑动 👇")
+        LogUtils.i(TAG, "执行向下滑动 ☝️ → 上一个视频")
 
         val displayMetrics = resources.displayMetrics
         val centerX = displayMetrics.widthPixels / 2
@@ -534,7 +543,7 @@ class GestureRecognitionService : LifecycleService() {
         tryInjectSwipe(centerX, centerY, swipeDistance)
 
         // 更新状态
-        updateGestureResult("向下滑动 👇 - 下一个视频")
+        updateGestureResult("向下滑动 ☝️ → 上一个视频")
     }
 
     /**
