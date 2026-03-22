@@ -1,16 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- 基础颜色 -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    
+
+    <!-- 设计系统主色调 - Cyan Health Theme -->
+    <color name="primary">#0891B2</color>
+    <color name="primary_light">#22D3EE</color>
+    <color name="primary_dark">#0E7490</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- 辅助色 - Health Green -->
+    <color name="secondary">#059669</color>
+    <color name="secondary_light">#34D399</color>
+    <color name="secondary_dark">#047857</color>
+    <color name="on_secondary">#FFFFFF</color>
+
+    <!-- 背景色 -->
+    <color name="background">#F0FDFA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#E0F2FE</color>
+
+    <!-- 文字颜色 -->
+    <color name="text_primary">#164E63</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="text_on_dark">#FFFFFF</color>
+
+    <!-- 手势提示颜色 -->
+    <color name="gesture_up">#0891B2</color>
+    <color name="gesture_down">#059669</color>
+    <color name="gesture_card_bg">#ECFEFF</color>
+    <color name="gesture_icon_bg">#CFFAFE</color>
+
+    <!-- 状态颜色 -->
+    <color name="success">#10B981</color>
+    <color name="warning">#F59E0B</color>
+    <color name="error">#EF4444</color>
+
     <!-- 手部关键点显示颜色 -->
-    <color name="mp_color_primary">#007F8B</color>
-    <color name="mp_color_secondary">#FBBC04</color>
-    <color name="landmark_point_color">#FFFF00</color>
-    <color name="landmark_line_color">#007F8B</color>
+    <color name="mp_color_primary">#0891B2</color>
+    <color name="mp_color_secondary">#22D3EE</color>
+    <color name="landmark_point_color">#0891B2</color>
+    <color name="landmark_line_color">#22D3EE</color>
+
+    <!-- 兼容旧版本 -->
+    <color name="purple_200">#22D3EE</color>
+    <color name="purple_500">#0891B2</color>
+    <color name="purple_700">#0E7490</color>
+    <color name="teal_200">#34D399</color>
+    <color name="teal_700">#059669</color>
 </resources>

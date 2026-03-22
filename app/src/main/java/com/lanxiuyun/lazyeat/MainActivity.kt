@@ -13,8 +13,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.lanxiuyun.lazyeat.service.ServiceManager
@@ -69,15 +67,6 @@ class MainActivity : AppCompatActivity() {
         val navView: BottomNavigationView = findViewById(R.id.nav_view)
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
 
-        // 配置导航栏
-        val appBarConfiguration = AppBarConfiguration(
-            setOf(
-                R.id.navigation_home
-            )
-        )
-
-        // 设置ActionBar与导航控制器的关联
-        setupActionBarWithNavController(navController, appBarConfiguration)
         // 设置底部导航与导航控制器的关联
         navView.setupWithNavController(navController)
     }
