@@ -64,11 +64,13 @@ class GestureRecognitionService : LifecycleService() {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "gesture_recognition_channel"
 
-        // 角度阈值常量
-        const val UP_MIN_ANGLE = 60f           // 向上最小角度
-        const val UP_MAX_ANGLE = 120f          // 向上最大角度
-        const val DOWN_MIN_ANGLE = 240f        // 向下最小角度
-        const val DOWN_MAX_ANGLE = 300f        // 向下最大角度
+        // 角度阈值常量（Android屏幕坐标系：y向下增加）
+        // 手指向上指时 tip.y < pip.y，角度约 270°
+        // 手指向下指时 tip.y > pip.y，角度约 90°
+        const val UP_MIN_ANGLE = 240f          // 向上最小角度（对应屏幕下方，实际手指向上）
+        const val UP_MAX_ANGLE = 300f          // 向上最大角度
+        const val DOWN_MIN_ANGLE = 60f         // 向下最小角度（对应屏幕上方，实际手指向下）
+        const val DOWN_MAX_ANGLE = 120f          // 向下最大角度
 
         // 与主界面共享的状态数据
         @Volatile
