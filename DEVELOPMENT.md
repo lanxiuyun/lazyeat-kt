@@ -233,8 +233,8 @@ flowchart TD
     HoldCheck -->|是| Trigger[触发滑动事件]
     HoldCheck -->|否| Continue[继续检测]
     
-    Trigger --> SwipeUp[执行向上滑动<br/>切换到上一个视频]
-    Trigger --> SwipeDown[执行向下滑动<br/>切换到下一个视频]
+    Trigger --> SwipeUp[执行向上滑动（手指向下指）<br/>切换到下一个视频]
+    Trigger --> SwipeDown[执行向下滑动（手指向上指）<br/>切换到上一个视频]
     
     SwipeUp --> Cooldown[进入冷却期 2s]
     SwipeDown --> Cooldown
