@@ -101,10 +101,10 @@ implementation("androidx.lifecycle:lifecycle-service:2.7.0")
 - 6: 食指近端指间关节 (Index Finger PIP)
 - 8: 食指指尖 (Index Finger TIP)
 
-方向判断逻辑：
-1. 计算指尖到掌指关节的向量角度
-2. 角度 > 60° 且 < 120° → 向上指 ☝️
-3. 角度 > 240° 且 < 300° → 向下指 👇
+方向判断逻辑（Android 屏幕坐标系：y 向下增加）：
+1. 计算指尖到近端指间关节 (PIP) 的向量角度
+2. 角度 240°~300° → 向上指 ☝️（指尖在关节上方，对应 atan2 约 270°）
+3. 角度 60°~120° → 向下指 👇（指尖在关节下方，对应 atan2 约 90°）
 4. 其他角度 → 无明确方向
 ```
 
@@ -219,8 +219,8 @@ flowchart TD
     Extract --> Angle[计算手指方向角度]
     
     Angle --> Judge{方向判断}
-    Judge -->|60°~120°| PointUp[手指向上 ☝️]
-    Judge -->|240°~300°| PointDown[手指向下 👇]
+    Judge -->|240°~300°| PointUp[手指向上 ☝️]
+    Judge -->|60°~120°| PointDown[手指向下 👇]
     Judge -->|其他| NoGesture[无明确方向]
     
     PointUp --> StateMachine[手势状态机]
@@ -310,19 +310,21 @@ adb logcat -s lazyeat:D
 文件: `GestureRecognitionService.kt`
 
 ```kotlin
-// 方向角度阈值（度数）
+// 方向角度阈值（度数）- 基于 Android 屏幕坐标系（y向下增加）
+// 手指向上指时 tip.y < pip.y，atan2 角度约 270°
+// 手指向下指时 tip.y > pip.y，atan2 角度约 90°
 object DirectionThresholds {
-    const val UP_MIN = 60f      // 向上最小角度
-    const val UP_MAX = 120f     // 向上最大角度
-    const val DOWN_MIN = 240f   // 向下最小角度  
-    const val DOWN_MAX = 300f   // 向下最大角度
+    const val UP_MIN = 240f     // 向上最小角度
+    const val UP_MAX = 300f     // 向上最大角度
+    const val DOWN_MIN = 60f    // 向下最小角度
+    const val DOWN_MAX = 120f   // 向下最大角度
 }
 
-// 手势保持时间（毫秒）
-const val GESTURE_HOLD_TIME = 500L
+// 手势保持时间（毫秒）- 越小越灵敏
+const val GESTURE_HOLD_TIME = 150L
 
 // 冷却时间（毫秒）
-const val COOLDOWN_TIME = 2000L
+const val COOLDOWN_TIME = 800L
 
 // 防抖阈值：连续 N 帧一致才确认方向变更
 const val DEBOUNCE_FRAMES = 3
@@ -388,9 +390,12 @@ private fun calculateFingerDirection(landmarks: List<NormalizedLandmark>): Float
  * 判断手势方向
  */
 private fun detectGestureDirection(angle: Float): GestureDirection {
+    // Android 屏幕坐标系：y 向下增加
+    // 手指向上指时，tip.y < pip.y，atan2 角度约 270°
+    // 手指向下指时，tip.y > pip.y，atan2 角度约 90°
     return when (angle) {
-        in 60f..120f -> GestureDirection.UP      // 向上
-        in 240f..300f -> GestureDirection.DOWN   // 向下
+        in 240f..300f -> GestureDirection.UP     // 向上（对应屏幕上方实际手指向上）
+        in 60f..120f -> GestureDirection.DOWN    // 向下（对应屏幕下方实际手指向下）
         else -> GestureDirection.NONE            // 无明确方向
     }
 }
@@ -540,7 +545,7 @@ sendBroadcast(intent)
 #### 高优先级
 
 1. **手势识别准确性测试**
-   - 不同角度（60°、90°、120°、240°、270°、300°）的识别率
+   - 不同角度（60°-向下、90°-向下、120°-向下、240°-向上、270°-向上、300°-向上）的识别率
    - 不同距离（20cm、50cm、80cm）的检测成功率
    - 不同光照条件（明亮、昏暗、逆光）的稳定性
 
@@ -683,10 +688,10 @@ cd lazyeat-kt
 
 ```kotlin
 // 手势保持时间（毫秒）- 越小越灵敏
-const val GESTURE_HOLD_TIME = 500L
+const val GESTURE_HOLD_TIME = 150L
 
 // 冷却时间（毫秒）- 越小可连续操作越快
-const val COOLDOWN_TIME = 2000L
+const val COOLDOWN_TIME = 800L
 
 // 防抖帧数 - 越小越灵敏但可能误触
 const val DEBOUNCE_FRAMES = 3
