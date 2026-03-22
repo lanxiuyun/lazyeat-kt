@@ -159,14 +159,14 @@ class HomeFragment : Fragment() {
             if (gestureResultText.text != currentResult) {
                 gestureResultText.text = currentResult
             }
-            
+
             // 更新预览图像和手部关键点显示
             val lastImage = GestureRecognitionService.lastPreviewImage
             val lastResult = GestureRecognitionService.lastHandLandmarkerResult
-            
+
             if (lastImage != null) {
                 handOverlayView.setPreviewImage(lastImage)
-                
+
                 if (lastResult != null) {
                     handOverlayView.setResults(
                         lastResult,
@@ -175,13 +175,19 @@ class HomeFragment : Fragment() {
                         com.google.mediapipe.tasks.vision.core.RunningMode.LIVE_STREAM
                     )
                 }
+
+                // 更新手势方向显示
+                handOverlayView.setGestureInfo(
+                    GestureRecognitionService.currentGestureDirection,
+                    GestureRecognitionService.currentGestureState
+                )
             } else {
                 clearHandOverlay()
             }
-            
+
             // 更新按钮状态
             updateButtonStates()
-            
+
         } catch (e: Exception) {
             LogUtils.e(TAG, "更新UI失败: ${e.message}")
         }

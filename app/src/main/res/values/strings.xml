@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">lazyeat</string>
     <string name="title_home">手势识别</string>
+    <string name="accessibility_service_description">通过手势识别控制抖音滑动。向上指切换到上一个视频，向下指切换到下一个视频。适用于吃饭时不想触碰屏幕的场景。</string>
 </resources>

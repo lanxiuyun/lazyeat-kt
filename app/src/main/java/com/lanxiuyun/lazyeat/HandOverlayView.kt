@@ -8,48 +8,50 @@ import androidx.core.content.ContextCompat
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import com.lanxiuyun.lazyeat.service.GestureRecognitionService
 import com.lanxiuyun.lazyeat.utils.LogUtils
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * 手部关键点覆盖视图
- * 用于在相机预览上绘制手部关键点和连接线
+ * 手部关键点覆盖视图 - 吃饭刷抖音助手
+ * 用于在相机预览上绘制手部关键点、连接线和手势方向指示
  */
 class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
     companion object {
         private const val TAG = "HandOverlayView"
-        // 关键点线条宽度
         private const val LANDMARK_STROKE_WIDTH = 8F
-        // 控制区域的相对大小（占视图宽度的比例）
-        private const val CONTROL_AREA_RATIO = 0.5f  // 控制区域占比约1/2
+        private const val DIRECTION_ARROW_SIZE = 80f
+        private const val DIRECTION_ARROW_WIDTH = 12f
     }
 
     // 手部识别结果
     private var results: HandLandmarkerResult? = null
-    
+
     // 预览图像
     private var previewBitmap: Bitmap? = null
     private val previewPaint = Paint()
-    
+
     // 绘制线条的画笔
     private var linePaint = Paint()
-    
+
     // 绘制关键点的画笔
     private var pointPaint = Paint()
 
-    // 缩放因子，用于适配不同尺寸的预览
-    private var scaleFactor: Float = 1f
-    
-    // 图像尺寸
-    private var imageWidth: Int = 1
-    private var imageHeight: Int = 1
+    // 方向箭头画笔
+    private val arrowPaint = Paint()
+    private val arrowFillPaint = Paint()
 
-    // 控制区域的Paint
-    private val controlAreaPaint = Paint()
-    // 控制区域的范围
-    private var controlAreaRect = RectF()
+    // 状态文字画笔
+    private val statusPaint = Paint()
+
+    // 背景画笔
+    private val statusBackgroundPaint = Paint()
+
+    // 当前手势方向和状态
+    private var currentDirection: GestureRecognitionService.GestureDirection = GestureRecognitionService.GestureDirection.NONE
+    private var currentState: GestureRecognitionService.GestureState = GestureRecognitionService.GestureState.IDLE
 
     init {
         initPaints()
@@ -63,6 +65,8 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         LogUtils.d(TAG, "清除手部覆盖视图")
         results = null
         previewBitmap = null
+        currentDirection = GestureRecognitionService.GestureDirection.NONE
+        currentState = GestureRecognitionService.GestureState.IDLE
         linePaint.reset()
         pointPaint.reset()
         invalidate()
@@ -76,128 +80,236 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         try {
             // 初始化预览图像画笔
             previewPaint.isFilterBitmap = true
-            
-            // 初始化线条画笔 - 用于绘制手部关键点之间的连接线
+
+            // 初始化线条画笔
             linePaint.color = ContextCompat.getColor(context!!, R.color.landmark_line_color)
             linePaint.strokeWidth = LANDMARK_STROKE_WIDTH
             linePaint.style = Paint.Style.STROKE
             linePaint.isAntiAlias = true
 
-            // 初始化关键点画笔 - 用于绘制手部关键点
+            // 初始化关键点画笔
             pointPaint.color = ContextCompat.getColor(context, R.color.landmark_point_color)
             pointPaint.strokeWidth = LANDMARK_STROKE_WIDTH
             pointPaint.style = Paint.Style.FILL
             pointPaint.isAntiAlias = true
 
-            // 初始化控制区域画笔
-            controlAreaPaint.apply {
-                color = Color.parseColor("#40673AB7")  // 调整透明度为25%
+            // 初始化方向箭头画笔
+            arrowPaint.apply {
+                color = Color.GREEN
+                strokeWidth = DIRECTION_ARROW_WIDTH
+                style = Paint.Style.STROKE
+                isAntiAlias = true
+            }
+
+            arrowFillPaint.apply {
+                color = Color.argb(128, 0, 255, 0)
                 style = Paint.Style.FILL
                 isAntiAlias = true
             }
-            
+
+            // 初始化状态文字画笔
+            statusPaint.apply {
+                color = Color.WHITE
+                textSize = 48f
+                isFakeBoldText = true
+                isAntiAlias = true
+            }
+
+            // 初始化状态背景画笔
+            statusBackgroundPaint.apply {
+                color = Color.argb(160, 0, 0, 0)
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+
             LogUtils.d(TAG, "画笔初始化完成")
         } catch (e: Exception) {
             LogUtils.e(TAG, "画笔初始化失败: ${e.message}")
-            // 使用默认颜色作为备选
             linePaint.color = Color.CYAN
             pointPaint.color = Color.YELLOW
-            controlAreaPaint.color = Color.parseColor("#40673AB7")
-        }
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        
-        // 判断是否是横屏
-        val isLandscape = w > h
-        
-        if (isLandscape) {
-            // 横屏时，以高度为基准
-            val controlHeight = h * CONTROL_AREA_RATIO
-            val controlWidth = controlHeight * 3f / 4f  // 保持3:4比例
-            
-            // 计算居中位置
-            val left = (w - controlWidth) / 2
-            val top = (h - controlHeight) / 2
-            
-            controlAreaRect.set(left, top, left + controlWidth, top + controlHeight)
-            LogUtils.d(TAG, "横屏 - 控制区域设置完成: left=$left, top=$top, width=$controlWidth, height=$controlHeight")
-        } else {
-            // 竖屏时，以宽度为基准
-            val controlWidth = w * CONTROL_AREA_RATIO
-            val controlHeight = controlWidth * 4f / 3f  // 保持4:3比例
-            
-            // 计算居中位置
-            val left = (w - controlWidth) / 2
-            val top = (h - controlHeight) / 2
-            
-            controlAreaRect.set(left, top, left + controlWidth, top + controlHeight)
-            LogUtils.d(TAG, "竖屏 - 控制区域设置完成: left=$left, top=$top, width=$controlWidth, height=$controlHeight")
+            arrowPaint.color = Color.GREEN
+            statusPaint.color = Color.WHITE
+            statusBackgroundPaint.color = Color.argb(160, 0, 0, 0)
         }
     }
 
     /**
-     * 绘制预览图像、手部关键点和连接线
+     * 设置手势方向和状态
      */
+    fun setGestureInfo(direction: GestureRecognitionService.GestureDirection, state: GestureRecognitionService.GestureState) {
+        currentDirection = direction
+        currentState = state
+
+        // 根据方向和状态更新箭头颜色
+        when (direction) {
+            GestureRecognitionService.GestureDirection.UP -> {
+                arrowPaint.color = Color.GREEN
+                arrowFillPaint.color = Color.argb(128, 0, 255, 0)
+            }
+            GestureRecognitionService.GestureDirection.DOWN -> {
+                arrowPaint.color = Color.RED
+                arrowFillPaint.color = Color.argb(128, 255, 0, 0)
+            }
+            GestureRecognitionService.GestureDirection.NONE -> {
+                arrowPaint.color = Color.GRAY
+                arrowFillPaint.color = Color.argb(128, 128, 128, 128)
+            }
+        }
+
+        invalidate()
+    }
+
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
-        
-        // 首先绘制预览图像
+
+        // 绘制预览图像
         previewBitmap?.let { bitmap ->
-            // 计算图像绘制区域，保持宽高比
             val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
             val dstRect = RectF(0f, 0f, width.toFloat(), height.toFloat())
-            
-            // 绘制预览图像
             canvas.drawBitmap(bitmap, srcRect, dstRect, previewPaint)
         }
 
-        // 绘制控制区域
-        canvas.drawRect(controlAreaRect, controlAreaPaint)
-        
         // 绘制手部关键点和连接线
         results?.let { handLandmarkerResult ->
             try {
-                // 遍历所有检测到的手
                 for (handIndex in handLandmarkerResult.landmarks().indices) {
                     val landmark = handLandmarkerResult.landmarks()[handIndex]
-                    LogUtils.d(TAG, "绘制第 ${handIndex + 1} 只手，关键点数量: ${landmark.size}")
-                    
-                    // 绘制每个关键点
+
+                    // 绘制关键点
                     for (pointIndex in landmark.indices) {
                         val normalizedLandmark = landmark[pointIndex]
-                        // 直接使用归一化坐标映射到视图尺寸
                         val x = normalizedLandmark.x() * width
                         val y = normalizedLandmark.y() * height
-                        
-                        canvas.drawPoint(x, y, pointPaint)
+
+                        canvas.drawCircle(x, y, 8f, pointPaint)
                     }
 
-                    // 绘制手部关键点之间的连接线
+                    // 绘制连接线
                     HandLandmarker.HAND_CONNECTIONS.forEach { connection ->
                         val startPoint = landmark.get(connection!!.start())
                         val endPoint = landmark.get(connection.end())
-                        
-                        // 直接使用归一化坐标映射到视图尺寸
+
                         val startX = startPoint.x() * width
                         val startY = startPoint.y() * height
                         val endX = endPoint.x() * width
                         val endY = endPoint.y() * height
-                        
+
                         canvas.drawLine(startX, startY, endX, endY, linePaint)
+                    }
+
+                    // 绘制手势方向指示（使用食指关键点）
+                    if (landmark.size >= 9) {
+                        drawDirectionArrow(canvas, landmark)
                     }
                 }
             } catch (e: Exception) {
                 LogUtils.e(TAG, "绘制手部关键点失败: ${e.message}")
-                e.printStackTrace()
             }
+        }
+
+        // 绘制状态信息
+        drawStatusInfo(canvas)
+    }
+
+    /**
+     * 绘制方向箭头
+     */
+    private fun drawDirectionArrow(
+        canvas: Canvas,
+        landmark: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>
+    ) {
+        val pip = landmark[6]   // 近端指间关节
+        val tip = landmark[8]   // 指尖
+
+        val startX = pip.x() * width
+        val startY = pip.y() * height
+        val endX = tip.x() * width
+        val endY = tip.y() * height
+
+        // 计算方向向量
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = kotlin.math.hypot(dx, dy)
+
+        if (length > 0) {
+            // 归一化方向向量
+            val dirX = dx / length
+            val dirY = dy / length
+
+            // 绘制方向箭头
+            val arrowLength = 120f
+            val arrowEndX = startX + dirX * arrowLength
+            val arrowEndY = startY + dirY * arrowLength
+
+            // 绘制主线
+            canvas.drawLine(startX, startY, arrowEndX, arrowEndY, arrowPaint)
+
+            // 绘制箭头头部
+            val headLength = 40f
+            val headAngle = Math.PI / 6  // 30度
+
+            val angle = kotlin.math.atan2(dirY.toDouble(), dirX.toDouble())
+
+            val x1 = arrowEndX - headLength * cos(angle - headAngle).toFloat()
+            val y1 = arrowEndY - headLength * sin(angle - headAngle).toFloat()
+            val x2 = arrowEndX - headLength * cos(angle + headAngle).toFloat()
+            val y2 = arrowEndY - headLength * sin(angle + headAngle).toFloat()
+
+            val path = Path().apply {
+                moveTo(arrowEndX, arrowEndY)
+                lineTo(x1, y1)
+                lineTo(x2, y2)
+                close()
+            }
+
+            canvas.drawPath(path, arrowFillPaint)
+            canvas.drawPath(path, arrowPaint)
         }
     }
 
     /**
+     * 绘制状态信息
+     */
+    private fun drawStatusInfo(canvas: Canvas) {
+        val directionText = when (currentDirection) {
+            GestureRecognitionService.GestureDirection.UP -> "☝️ 向上"
+            GestureRecognitionService.GestureDirection.DOWN -> "👇 向下"
+            GestureRecognitionService.GestureDirection.NONE -> "🤚 无方向"
+        }
+
+        val stateText = when (currentState) {
+            GestureRecognitionService.GestureState.IDLE -> "等待中"
+            GestureRecognitionService.GestureState.POINTING_UP -> "向上保持..."
+            GestureRecognitionService.GestureState.POINTING_DOWN -> "向下保持..."
+            GestureRecognitionService.GestureState.SWIPING_UP -> "触发上滑！"
+            GestureRecognitionService.GestureState.SWIPING_DOWN -> "触发下滑！"
+            GestureRecognitionService.GestureState.COOLING -> "冷却中..."
+        }
+
+        val text = "$directionText | $stateText"
+
+        // 计算文字位置
+        val x = 20f
+        val y = 80f
+
+        // 绘制背景
+        val bounds = Rect()
+        statusPaint.getTextBounds(text, 0, text.length, bounds)
+        val padding = 16f
+        canvas.drawRect(
+            x - padding,
+            y - bounds.height() - padding,
+            x + bounds.width() + padding,
+            y + padding,
+            statusBackgroundPaint
+        )
+
+        // 绘制文字
+        canvas.drawText(text, x, y, statusPaint)
+    }
+
+    /**
      * 设置预览图像
-     * @param bitmap 预览图像
      */
     fun setPreviewImage(bitmap: Bitmap) {
         previewBitmap = bitmap
@@ -206,10 +318,6 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
 
     /**
      * 设置手部识别结果并更新绘制
-     * @param handLandmarkerResults 手部识别结果
-     * @param imageHeight 输入图像高度
-     * @param imageWidth 输入图像宽度
-     * @param runningMode 运行模式（图像/视频/实时流）
      */
     fun setResults(
         handLandmarkerResults: HandLandmarkerResult,
@@ -218,39 +326,8 @@ class HandOverlayView(context: Context?, attrs: AttributeSet?) : View(context, a
         runningMode: RunningMode = RunningMode.LIVE_STREAM
     ) {
         LogUtils.d(TAG, "设置手部识别结果，图像尺寸: ${imageWidth}x${imageHeight}，视图尺寸: ${width}x${height}")
-        
-        results = handLandmarkerResults
 
-        // 触发重绘
+        results = handLandmarkerResults
         invalidate()
     }
-
-    /**
-     * 检查点是否在控制区域内并返回相对位置
-     * 如果点超出控制区域，则返回最近的边界值
-     * @param x 点的x坐标
-     * @param y 点的y坐标
-     * @return Pair<Float, Float> 返回相对位置(0-1)
-     */
-    fun getRelativePosition(x: Float, y: Float): Pair<Float, Float> {
-        // 计算相对于控制区域的位置，处理越界情况
-        val clampedX = x.coerceIn(controlAreaRect.left, controlAreaRect.right)
-        val clampedY = y.coerceIn(controlAreaRect.top, controlAreaRect.bottom)
-        
-        // 计算相对位置
-        val relativeX = (clampedX - controlAreaRect.left) / controlAreaRect.width()
-        val relativeY = (clampedY - controlAreaRect.top) / controlAreaRect.height()
-        
-        // 确保返回值在0-1范围内
-        return Pair(
-            relativeX.coerceIn(0f, 1f),
-            relativeY.coerceIn(0f, 1f)
-        ).also {
-            if (x != clampedX || y != clampedY) {
-                LogUtils.d(TAG, "点(x=$x, y=$y)超出控制区域，已限制为(x=$clampedX, y=$clampedY)")
-            }
-            LogUtils.d(TAG, "控制区域映射: 输入(x=$x, y=$y) -> 输出(x=${it.first}, y=${it.second})")
-            LogUtils.d(TAG, "控制区域范围: left=${controlAreaRect.left}, top=${controlAreaRect.top}, right=${controlAreaRect.right}, bottom=${controlAreaRect.bottom}")
-        }
-    }
-} 
+}
