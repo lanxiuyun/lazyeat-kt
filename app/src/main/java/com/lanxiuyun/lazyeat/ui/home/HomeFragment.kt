@@ -38,6 +38,18 @@ class HomeFragment : Fragment() {
     private lateinit var stopServiceButton: Button
     private lateinit var logLevelSpinner: Spinner
     
+    // 灵敏度调节组件
+    private lateinit var straightThresholdSeekBar: SeekBar
+    private lateinit var bentThresholdSeekBar: SeekBar
+    private lateinit var requireFistSwitch: Switch
+    private lateinit var straightThresholdValue: TextView
+    private lateinit var bentThresholdValue: TextView
+    
+    // 手势参数
+    private var currentStraightThreshold = 40f
+    private var currentBentThreshold = 45f
+    private var currentRequireFist = true
+    
     // 用于定期更新UI的Handler
     private val mainHandler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
@@ -67,6 +79,9 @@ class HomeFragment : Fragment() {
         gestureResultText = binding.gestureResultText
         handOverlayView = binding.handOverlay
         logLevelSpinner = binding.logLevelSpinner
+        
+        // 初始化灵敏度调节组件
+        initSensitivityControls()
         
         // 设置日志等级选择器
         setupLogLevelSpinner()
@@ -301,6 +316,106 @@ class HomeFragment : Fragment() {
         } catch (e: Exception) {
             LogUtils.e(TAG, "更新日志等级失败: ${e.message}")
             Toast.makeText(requireContext(), "更新日志等级失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 初始化灵敏度调节控件
+     */
+    private fun initSensitivityControls() {
+        // 加载保存的参数
+        loadGestureParams()
+        
+        // 初始化组件引用
+        straightThresholdSeekBar = binding.straightThresholdSeekbar
+        bentThresholdSeekBar = binding.bentThresholdSeekbar
+        requireFistSwitch = binding.requireFistSwitch
+        straightThresholdValue = binding.straightThresholdValue
+        bentThresholdValue = binding.bentThresholdValue
+        
+        // 设置初始值
+        straightThresholdSeekBar.progress = currentStraightThreshold.toInt()
+        bentThresholdSeekBar.progress = currentBentThreshold.toInt()
+        requireFistSwitch.isChecked = currentRequireFist
+        updateThresholdLabels()
+        
+        // 伸直阈值 SeekBar
+        straightThresholdSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                currentStraightThreshold = progress.toFloat()
+                updateThresholdLabels()
+            }
+            
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                saveGestureParams()
+                Toast.makeText(requireContext(), "伸直严格度已调整为 ${currentStraightThreshold.toInt()}°", Toast.LENGTH_SHORT).show()
+            }
+        })
+        
+        // 弯曲阈值 SeekBar
+        bentThresholdSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                currentBentThreshold = progress.toFloat()
+                updateThresholdLabels()
+            }
+            
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                saveGestureParams()
+                Toast.makeText(requireContext(), "握拳严格度已调整为 ${currentBentThreshold.toInt()}°", Toast.LENGTH_SHORT).show()
+            }
+        })
+        
+        // 握拳开关
+        requireFistSwitch.setOnCheckedChangeListener { _, isChecked ->
+            currentRequireFist = isChecked
+            saveGestureParams()
+            val message = if (isChecked) "已启用握拳检测（其他手指必须弯曲）" else "已禁用握拳检测（单手食指即可触发）"
+            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 更新阈值显示标签
+     */
+    private fun updateThresholdLabels() {
+        straightThresholdValue.text = "${currentStraightThreshold.toInt()}°"
+        bentThresholdValue.text = "${currentBentThreshold.toInt()}°"
+    }
+    
+    /**
+     * 从 SharedPreferences 加载手势参数
+     */
+    private fun loadGestureParams() {
+        try {
+            val prefs = requireContext().getSharedPreferences("gesture_settings", android.content.Context.MODE_PRIVATE)
+            currentStraightThreshold = prefs.getFloat("straight_threshold", 40f)
+            currentBentThreshold = prefs.getFloat("bent_threshold", 45f)
+            currentRequireFist = prefs.getBoolean("require_other_fingers_bent", true)
+            LogUtils.i(TAG, "手势参数已加载: 伸直=${currentStraightThreshold}°, 弯曲=${currentBentThreshold}°, 需握拳=$currentRequireFist")
+        } catch (e: Exception) {
+            LogUtils.w(TAG, "加载手势参数失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 保存手势参数到 SharedPreferences
+     */
+    private fun saveGestureParams() {
+        try {
+            val prefs = requireContext().getSharedPreferences("gesture_settings", android.content.Context.MODE_PRIVATE)
+            prefs.edit().apply {
+                putFloat("straight_threshold", currentStraightThreshold)
+                putFloat("bent_threshold", currentBentThreshold)
+                putBoolean("require_other_fingers_bent", currentRequireFist)
+                apply()
+            }
+            LogUtils.d(TAG, "手势参数已保存: 伸直=${currentStraightThreshold}°, 弯曲=${currentBentThreshold}°, 需握拳=$currentRequireFist")
+        } catch (e: Exception) {
+            LogUtils.e(TAG, "保存手势参数失败: ${e.message}")
         }
     }
     

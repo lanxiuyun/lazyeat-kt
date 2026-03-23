@@ -59,6 +59,11 @@ class GestureRecognitionService : LifecycleService() {
     // 手势状态机
     private var gestureStateMachine = GestureStateMachine()
 
+    // 手势识别参数（可从 SharedPreferences 读取）
+    private var straightThreshold = 40f      // 伸直检测阈值
+    private var bentThreshold = 45f        // 弯曲检测阈值（手指弯曲的最小角度）
+    private var requireOtherFingersBent = true  // 是否要求其他手指弯曲
+
     companion object {
         private const val TAG = "GestureRecognitionService"
         private const val NOTIFICATION_ID = 1001
@@ -250,12 +255,30 @@ class GestureRecognitionService : LifecycleService() {
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
+        // 读取手势识别参数
+        loadGestureParams()
+
         handLandmarkerDetector = HandLandmarkerDetector(this) { result ->
             handleGestureResult(result)
         }
         handLandmarkerDetector.initialize()
 
         createNotificationChannel()
+    }
+
+    /**
+     * 从 SharedPreferences 加载手势识别参数
+     */
+    private fun loadGestureParams() {
+        try {
+            val prefs = getSharedPreferences("gesture_settings", Context.MODE_PRIVATE)
+            straightThreshold = prefs.getFloat("straight_threshold", 40f)
+            bentThreshold = prefs.getFloat("bent_threshold", 45f)
+            requireOtherFingersBent = prefs.getBoolean("require_other_fingers_bent", true)
+            LogUtils.i(TAG, "手势参数加载: 伸直阈值=${straightThreshold}°, 弯曲阈值=${bentThreshold}°, 需其他指弯曲=$requireOtherFingersBent")
+        } catch (e: Exception) {
+            LogUtils.w(TAG, "加载手势参数失败，使用默认值: ${e.message}")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -429,12 +452,27 @@ class GestureRecognitionService : LifecycleService() {
     /**
      * 计算食指指向方向
      * 使用 PIP(6) -> TIP(8) 两个关键点
+     * 新增：检测食指是否伸直，并检查其他手指是否弯曲（握拳姿势）
      */
     private fun calculateFingerDirection(landmarks: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>): GestureDirection {
-        if (landmarks.size < 9) return GestureDirection.NONE
+        if (landmarks.size < 21) return GestureDirection.NONE  // 需要所有手指的关键点
 
-        val pip = landmarks[6]   // 近端指间关节
-        val tip = landmarks[8]   // 指尖
+        val mcp = landmarks[5]   // 食指掌指关节
+        val pip = landmarks[6]   // 食指近端指间关节
+        val dip = landmarks[7]   // 食指远端指间关节
+        val tip = landmarks[8]   // 食指指尖
+
+        // 1. 检查食指是否伸直
+        if (!isFingerStraight(mcp, pip, dip, tip)) {
+            LogUtils.v(TAG, "食指未伸直，忽略手势")
+            return GestureDirection.NONE
+        }
+
+        // 2. 检查其他手指是否弯曲（握拳姿势）
+        if (requireOtherFingersBent && !areOtherFingersBent(landmarks)) {
+            LogUtils.v(TAG, "其他手指未弯曲，忽略手势（未握拳）")
+            return GestureDirection.NONE
+        }
 
         // 使用 PIP -> TIP 向量计算方向（更稳定）
         val dx = tip.x() - pip.x()
@@ -461,6 +499,113 @@ class GestureRecognitionService : LifecycleService() {
             }
             else -> GestureDirection.NONE
         }
+    }
+
+    /**
+     * 检测单根手指是否伸直
+     */
+    private fun isFingerStraight(
+        mcp: com.google.mediapipe.tasks.components.containers.NormalizedLandmark,
+        pip: com.google.mediapipe.tasks.components.containers.NormalizedLandmark,
+        dip: com.google.mediapipe.tasks.components.containers.NormalizedLandmark,
+        tip: com.google.mediapipe.tasks.components.containers.NormalizedLandmark
+    ): Boolean {
+        val v1 = Pair(pip.x() - mcp.x(), pip.y() - mcp.y())
+        val v2 = Pair(dip.x() - pip.x(), dip.y() - pip.y())
+        val v3 = Pair(tip.x() - dip.x(), tip.y() - dip.y())
+
+        val angle1 = Math.toDegrees(atan2(v1.second.toDouble(), v1.first.toDouble())).toFloat()
+        val angle2 = Math.toDegrees(atan2(v2.second.toDouble(), v2.first.toDouble())).toFloat()
+        val angle3 = Math.toDegrees(atan2(v3.second.toDouble(), v3.first.toDouble())).toFloat()
+
+        fun normalizeAngle(angle: Float): Float {
+            var result = angle
+            while (result < 0) result += 360f
+            while (result >= 360f) result -= 360f
+            return result
+        }
+
+        fun angleDiff(a1: Float, a2: Float): Float {
+            val diff = kotlin.math.abs(a1 - a2)
+            return kotlin.math.min(diff, 360f - diff)
+        }
+
+        val normAngle1 = normalizeAngle(angle1)
+        val normAngle2 = normalizeAngle(angle2)
+        val normAngle3 = normalizeAngle(angle3)
+
+        val diff12 = angleDiff(normAngle1, normAngle2)
+        val diff23 = angleDiff(normAngle2, normAngle3)
+
+        val isStraight = diff12 < straightThreshold && diff23 < straightThreshold
+
+        if (!isStraight) {
+            LogUtils.v(TAG, "手指弯曲检测: diff12=${"%.1f".format(diff12)}°, diff23=${"%.1f".format(diff23)}°, 阈值=$straightThreshold°")
+        }
+
+        return isStraight
+    }
+
+    /**
+     * 检测其他手指（中指、无名指、小指）是否弯曲
+     * 握拳姿势下，这些手指应该都是弯曲的
+     */
+    private fun areOtherFingersBent(landmarks: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>): Boolean {
+        // 中指 (9, 10, 11, 12)
+        val middleBent = isFingerBent(landmarks[9], landmarks[10], landmarks[11], landmarks[12])
+        // 无名指 (13, 14, 15, 16)
+        val ringBent = isFingerBent(landmarks[13], landmarks[14], landmarks[15], landmarks[16])
+        // 小指 (17, 18, 19, 20)
+        val pinkyBent = isFingerBent(landmarks[17], landmarks[18], landmarks[19], landmarks[20])
+
+        val allBent = middleBent && ringBent && pinkyBent
+
+        if (!allBent) {
+            LogUtils.v(TAG, "手指弯曲状态: 中指=$middleBent, 无名指=$ringBent, 小指=$pinkyBent")
+        }
+
+        return allBent
+    }
+
+    /**
+     * 检测单根手指是否弯曲
+     * 弯曲时，指尖与掌指关节的距离较近，或者各段角度差较大
+     */
+    private fun isFingerBent(
+        mcp: com.google.mediapipe.tasks.components.containers.NormalizedLandmark,
+        pip: com.google.mediapipe.tasks.components.containers.NormalizedLandmark,
+        dip: com.google.mediapipe.tasks.components.containers.NormalizedLandmark,
+        tip: com.google.mediapipe.tasks.components.containers.NormalizedLandmark
+    ): Boolean {
+        val v1 = Pair(pip.x() - mcp.x(), pip.y() - mcp.y())
+        val v2 = Pair(dip.x() - pip.x(), dip.y() - pip.y())
+        val v3 = Pair(tip.x() - dip.x(), tip.y() - dip.y())
+
+        val angle1 = Math.toDegrees(atan2(v1.second.toDouble(), v1.first.toDouble())).toFloat()
+        val angle2 = Math.toDegrees(atan2(v2.second.toDouble(), v2.first.toDouble())).toFloat()
+        val angle3 = Math.toDegrees(atan2(v3.second.toDouble(), v3.first.toDouble())).toFloat()
+
+        fun normalizeAngle(angle: Float): Float {
+            var result = angle
+            while (result < 0) result += 360f
+            while (result >= 360f) result -= 360f
+            return result
+        }
+
+        fun angleDiff(a1: Float, a2: Float): Float {
+            val diff = kotlin.math.abs(a1 - a2)
+            return kotlin.math.min(diff, 360f - diff)
+        }
+
+        val normAngle1 = normalizeAngle(angle1)
+        val normAngle2 = normalizeAngle(angle2)
+        val normAngle3 = normalizeAngle(angle3)
+
+        val diff12 = angleDiff(normAngle1, normAngle2)
+        val diff23 = angleDiff(normAngle2, normAngle3)
+
+        // 手指弯曲的判断：各段角度差大于弯曲阈值
+        return diff12 > bentThreshold || diff23 > bentThreshold
     }
 
     /**
